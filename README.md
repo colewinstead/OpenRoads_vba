@@ -125,3 +125,7 @@ three repos cover the LISP / VBA tooling layer of most US civil offices.
 One `.bas` per logical unit (one module, one or more closely related Subs).
 Header comment names the Sub(s), the key-in syntax, and any assumptions
 about working units. Append a row to the right table above.
+
+## See also
+
+Companion calculators for corridor design: [AASHTO superelevation](https://pe-calc.com/tools/superelevation.html) and [vertical curve](https://pe-calc.com/tools/vertical-curve.html) on pe-calc.com.
