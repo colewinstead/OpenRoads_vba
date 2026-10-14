@@ -28,6 +28,41 @@ the OpenRoads-native annotation tools.
 5. Bind frequent commands to function keys via **Workspace → Function
    Keys** for one-keystroke access.
 
+## Adding a VBA macro to a ribbon button (ORD / ProjectWise)
+
+You can add a custom ribbon button that **loads a VBA project when clicked and then runs its macro**. This is useful when switching between ProjectWise managed workspaces, where VBA autoload configuration may not persist or may interfere with workspace compilation.
+
+1. Save your compiled `.mvba` file in an accessible, local or synced folder. If using OneDrive, make the file **Always keep on this device**.
+2. In ORD's **Key-in** window, test the VBA load and run commands separately:
+
+   ```text
+   vba load "C:\CAD_Custom\VBA\RotateElementHorizontal.mvba"
+   vba run [RotateElementHorizontal]Main
+   ```
+
+3. Test the combined key-in below on a disposable element in a test DGN. Replace the example path, project name, and procedure with those for your macro:
+
+   ```text
+   vba load "C:\CAD_Custom\VBA\RotateElementHorizontal.mvba";vba run [RotateElementHorizontal]Main
+   ```
+
+   The semicolon separates the two key-ins; depending on your ORD settings, you may need **Parse All Mode** enabled. The quoted path accommodates spaces and punctuation in folder names.
+
+4. Right-click the ORD ribbon and choose **Customize Ribbon**. In a personal ribbon customization, add a group and button (or edit an existing button). Set the button's **Key-in** to the tested combined command, give it a label and icon, and click **Apply**.
+5. Restart ORD and test the button in another DGN or ProjectWise project. Back up your personal ribbon `.dgnlib` independently of your `.upf` preferences file.
+
+### ProjectWise managed-workspace warning
+
+**Avoid adding personal, absolute VBA paths to `MS_VBAAUTOLOADPROJECTS` or `MS_VBASEARCHDIRECTORIES` in ProjectWise Personal WorkSpace settings without CAD administration approval.** In a managed workspace, such settings can cause **Error 222: Failed to generate managed workspace configuration file** during workspace compilation. The button-based load-and-run method above does not require these configuration entries.
+
+If this error occurs after adding personal VBA paths:
+
+- Use **ProjectWise Explorer → Tools → Options → Personal WorkSpace** to remove **only the custom entries you added**, leaving the organization's existing configuration intact.
+- Do not edit automatically generated ProjectWise workspace `.cfg` files (which can be regenerated), and do not delete `.upf` or ribbon `.dgnlib` files to troubleshoot this issue.
+- If you cannot access or safely edit the Personal WorkSpace settings, contact your ProjectWise/CAD administrator.
+
+> **Note:** `RotateElementHorizontal.mvba` is an example project from an external workspace; it is **not included in this repository**. Use a VBA project you have permission to run and distribute.
+
 ## Routines
 
 ### Parcel / area work
