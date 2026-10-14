@@ -1,0 +1,3 @@
+vba load spec d ft edit.mvba
+vba run Bmrspec_d_ft_edit
+filedesign savesettings
