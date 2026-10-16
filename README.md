@@ -1,8 +1,9 @@
 # OpenRoads_vba
 
 Bentley OpenRoads Designer / MicroStation VBA macros. The original
-`nodeincell.mvba` ships compiled; everything else in this repo ships as
-**`.bas` source modules** so the code is reviewable and contributable.
+`nodeincell.mvba` and `PerpendicularLineGenerator/PatternLineGenerator.mvba`
+ship compiled. The tools also include reviewable **VBA source** where available
+(`.bas`, with class/form source where a tool needs them).
 
 **Want it packaged?** [**OpenRoads Field Kit**](https://fingazpdx.gumroad.com/l/openroads-field-kit) — the same macros as a one-click zip with a quick-start guide, printable cheat sheet, and email support. The code in this repo is MIT and stays free; the kit is packaging and a reply when something breaks.
 
@@ -91,6 +92,48 @@ If this error occurs after adding personal VBA paths:
 |------------------------------|----------------------------|------------------------------------------------------------------------------|
 | `InverseReportMain`          | `InverseReport.bas`        | Full inverse on the first selected line: bearing, distance, dN/dE/dZ, slope.  |
 | `SlopeLabelMain`             | `SlopeLabel.bas`           | Slope label at the midpoint of a selected line (percent + H:V ratio).         |
+| `Main`                      | [PerpendicularLineGenerator](PerpendicularLineGenerator/README.md) | ORD 2026 cross-lines at cumulative geometry distances; settings UserForm, forward/reverse, centered/left/right, active level/symbology. |
+
+#### Perpendicular Line Generator (ORD 2026)
+
+Load the included `PerpendicularLineGenerator/PatternLineGenerator.mvba`, a real
+project saved in ORD with its UserForm. The [installation and usage guide](PerpendicularLineGenerator/README.md)
+also includes complete module/class source and instructions for rebuilding the
+UserForm from `frmPerpendicularLines.code.vba`. A `.bas` import alone does not
+create this dialog.
+
+```text
+VBA LOAD "C:\CAD_Custom\VBA\PatternLineGenerator.mvba"
+VBA RUN [PatternLineGenerator]PerpendicularLineGeneratorMain.Main
+```
+
+Replace the path with your saved file location. For a ribbon button that loads
+and runs the tool, use:
+
+```text
+vba load "C:\CAD_Custom\VBA\PatternLineGenerator.mvba";vba run [PatternLineGenerator]PerpendicularLineGeneratorMain.Main
+```
+
+Run the tool, select a horizontal alignment, then pick the start and end with
+dynamic cross-line previews before the settings dialog opens. Pick Start/Pick End
+buttons re-pick limits; Full Alignment restores the complete range. Reset during
+a pick opens settings without accepting the moving cursor location.
+Defaults are 150 master-unit spacing and 200 master-unit total length, centered,
+start 0, geometric end, starting line included, ending line excluded, forward.
+The dialog shows active level, working units, selection status and estimated
+count. In a feet-master model, a 1,000-foot straight produces seven 200-foot
+lines at distances 0 through 900 feet; each extends 100 feet on either side.
+
+Supported exposed VBA geometry includes lines, line strings, arcs, B-splines
+and connected complex strings. Inputs are geometry distances, **not ORD
+stationing**. Native civil spirals and station equations are not interpreted;
+displayed spline/stroke geometry does not certify native alignment accuracy.
+See the [API/support notes](PerpendicularLineGenerator/API_NOTES.md),
+[troubleshooting](PerpendicularLineGenerator/README.md#troubleshooting), and
+[repeatable ORD test plan](PerpendicularLineGenerator/TEST_PLAN.md). This tool
+uses actual model master units, including non-foot units. The user reports the
+generator and dynamic picking working in ORD; measured acceptance tests remain
+pending. It changes no ProjectWise or VBA autoload configuration.
 
 ### Text utilities
 
