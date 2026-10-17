@@ -40,6 +40,27 @@ Public Function TerrainMasterUnitName(unit As MeasurementUnit) As String
     If Abs(metres - 1200# / 3937#) < 0.000000000001 Then TerrainMasterUnitName = "us-ft"
 End Function
 
+Public Function TerrainEPSGReference(ByVal source As String) As String
+    Dim code As String
+    source = Trim$(source)
+    If UCase$(Left$(source, 5)) <> "EPSG:" Then Exit Function
+    code = Trim$(Mid$(source, 6))
+    If Len(code) = 0 Then Exit Function
+    If Left$(code, 1) = "0" Or code Like "*[!0-9]*" Then Exit Function
+    TerrainEPSGReference = "EPSG:" & code
+End Function
+
+Public Function TerrainSuggestedCRS() As String
+    Dim model As Object, gcs As Object
+    On Error GoTo Unavailable
+    Set model = ActiveModelReference
+    Set gcs = CallByName(model, "GetGCS", VbMethod, True)
+    If gcs Is Nothing Then Exit Function
+    ' Source is a suggestion; local modifiers and grid mapping still require verification.
+    TerrainSuggestedCRS = TerrainEPSGReference(CStr(CallByName(gcs, "Source", VbGet)))
+Unavailable:
+End Function
+
 Public Function TerrainDetectedGCS() As String
     Dim model As Object, gcs As Object
     On Error GoTo Unavailable

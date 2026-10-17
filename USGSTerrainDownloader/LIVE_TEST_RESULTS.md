@@ -29,6 +29,72 @@ including five real-EXE launcher tests; native form and invalid-schema bridge
 checks passed before this search. No ProjectWise/workspace/autoload or PowerShell
 policy settings were changed. The original Mac download/processing pilot follows.
 
+### Metadata/EPSG autofill follow-up
+
+The user's later search used the prefilled assigned-GCS Source `EPSG:6576`.
+Native defaults/parser assertions passed with the verification checkbox unchecked.
+Both returned Tennessee Middle B1/B2 records contain explicit metre/NAVD88
+declarations in their full `body` text; the shorter `moreInfo` field was truncated.
+The user confirmed that source elevation unit, vertical CRS and citation all filled.
+
+A native test loaded the actual saved two-row search TSV through the form's
+LoadProducts routine and passed m/EPSG:5703, both complete citations, protected
+detected fields, deselection clearing/unlocking and selection restoration. Element
+IDs and checked settings remained unchanged. Separate queued checks had failed to
+observe the live results reliably; those failures are not counted as passes.
+The temporary loader/test code was removed before the final five-component
+Debug Compile and targeted Save. Evidence: `.runs/ord-20261017/native-epsg-default.json`,
+`native-vertical-two-products.json` and `metadata-epsg-build.json`. The updated
+Windows offline suite passed **40 tests, no skips**. No additional raster was
+downloaded or processed, and no native terrain was imported in this follow-up.
+
+### Windows processing and ORD import storage fix
+
+The user subsequently processed three Desktop jobs: a small irregular boundary
+in US survey feet and a larger rectangle in both metres and US survey feet. Actual
+job reports show `dem_complete` with zero gaps (330,562 and 14,467,794 valid cells).
+The user reported "Import failed" for their Float64 outputs, while the original
+Float32 USGS tile imported successfully. Actual metadata inspection found processed
+NoData `-1e300`, versus `-999999` on the original.
+
+A separate small Float32/-999999 diagnostic retained the exact grid, compound CRS
+and US-survey-foot elevation unit; the user confirmed it imported. Maximum storage
+rounding was 0.0000305175 US survey foot (about 0.0000093 m). Because both storage
+type and NoData were changed together, the individual rejecting feature is not proven.
+
+The worker now keeps Float64 warp/unit arithmetic and writes Float32/-999999 only
+at delivery, with measured rounding and overflow/rounded-sentinel collision checks.
+All **41 Windows tests passed, no skips**. Three corrected outputs were regenerated
+from the cached sources into Desktop/USGS_ORD_fixed without network, preserving all
+old outputs and originals. The small regenerated worker output matched every sample,
+NoData, grid, CRS and elevation unit of the importing trial. **The user confirmed that
+this worker-generated terrain also imported successfully in ORD.** Larger regenerated
+copies and known-control comparisons remain untested. No automated native-terrain
+creation or 2D-to-3D model integration was added by this fix.
+
+Local evidence in `.runs/ord-20261017/`: desktop-import-failures.json,
+import-float32-trial.json, desktop-reprocessed-float32.json and
+native-float32-import-user-confirmation.json. Original Mac pilot details follow.
+
+### Horizontal cell-size default
+
+The 1-metre DEM search now writes the suggested one-metre cell spacing in the
+validated horizontal CRS units, independently of model master or elevation units.
+The form fills a blank field or replaces its preceding automatic default, preserving
+manual overrides. Angular DEM/LiDAR collections do not assume a metre spacing.
+The Windows suite passed **42 tests, no skips**, including metre, international-foot
+and survey-foot suggestions. An actual ORD native form check passed 3.28083333333
+for US survey feet, metric replacement, manual preservation, empty refill and
+unsupported-default clearing with unchanged DGN IDs/settings. The BOM-only Unicode
+reader error exposed by this check was fixed in the shared reader. The actual
+VBA/EXE/Python invalid-schema bridge regression also passed. Metadata was replayed
+from the saved USGS search, with no network or raster transfer. Evidence:
+`.runs/ord-20261017/native-cell-size.json` and `native-cell-size-launcher.json`.
+After diagnostics were removed, the user completed the final Debug Compile;
+the terrain-specific compile command was confirmed disabled, and targeted Save
+returned Saved=True with five source-matching components. The updated dialog was
+reopened. Final artifact details are in `.runs/ord-20261017/cell-size-build.json`.
+
 ### Original pilot inputs
 
 A deliberately specified **headless test grid**, not a detected DGN, was used:

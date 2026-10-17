@@ -54,6 +54,10 @@ before accepting the displayed name as an executed application-integration resul
 Further actual COM reads in the 2D test DGN returned Source=`EPSG:6576`,
 DatumName=`NAD83/2011`, Units=`Foot`, VerticalDatumName=`NAVD88` and PaperScale=1.
 The local pyproj EPSG catalog identifies 6576 as NAD83(2011) / Tennessee (ftUS).
+The form now suggests that plain Source EPSG reference, with strict prefix/digit
+validation; unavailable or ambiguous sources remain blank. Native parser/default
+assertions passed, including EPSG:6576 and an unchecked grid-verification checkbox.
+The field stays editable. This does not extract WKT or certify local transforms.
 The user confirmed unmodified State Plane grid coordinates; a numeric known-point
 comparison remains untested. Source is descriptive metadata, not a verified full
 definition/export contract, and the DGN's vertical datum is not source-tile evidence.
@@ -163,9 +167,17 @@ Requests use `bbox=west,south,east,north` in WGS84 degrees, `outputFormat=JSON`,
 100-item page size meets the API's multiple-of-five pagination restriction.
 Response envelope fields are `total`, `items`, `errors`; full item dictionaries
 are preserved, including metadata links, source ID, product title, publication/
-update dates, size, format, body and geographic bounding box. Missing acquisition,
-horizontal/vertical declarations remain unknown; product descriptions are shown,
-not converted into verified engineering assertions. Source rasters supply actual
+update dates, size, format, body and geographic bounding box. Missing acquisition
+and horizontal declarations remain unknown. Vertical autofill recognizes only the
+explicit full-body USGS sentence declaring all bare-earth elevations in metres
+referenced to NAVD88, with a credential-free HTTPS metadata citation. Conflicting
+datum/unit keywords or unsupported wording leave it unresolved. All selected
+records must agree before the form fills/protects unit, EPSG:5703 and every source
+citation. Selection changes clear stale declarations; unresolved selections allow
+manual verification. The backend rejects contradictory detected declarations
+before transfer. No vertical datum is inferred from the dataset name or DGN.
+Actual ORD tests passed the two saved live-search rows and selection clear/restore.
+Source rasters supply actual
 spatial tags after download. Duplicate source IDs/URLs are collapsed. No newest-
 first selection or accuracy ranking is applied. Product boxes can overselect an
 irregular polygon; raster clipping and cell-center coverage are separate checks.
@@ -205,15 +217,24 @@ different purposes. The local SHA-256 is not an authoritative USGS checksum.
   target horizontal CRS as the DGN; an explicit pyproj-selected **2D** pipeline,
   `-novshift`, exact transform evaluation (`errorThreshold=0`), bilinear resampling,
   optional original-polygon mask applied at target cell centers **after** resampling,
-  Float64, tiled/DEFLATE GeoTIFF. No implicit
+  Float64 working raster followed by Float32 tiled/DEFLATE GeoTIFF delivery. No implicit
   vertical datum shift is allowed. Compatible mosaics require equal horizontal
   CRSs, resolution (relative comparison `1e-9`) and aligned grid origins (within
   `1e-6` pixel). These are numerical compatibility budgets, not project criteria.
 - Valid warped elevation cells are scaled explicitly by
   `metres_per_source_Z_unit / metres_per_output_Z_unit`. NoData is excluded from
-  that multiplication. The chosen output NoData sentinel is `-1e300` in Float64;
-  nonfinite valid samples/converted-sentinel collisions stop processing. Source
+  that multiplication. Internal NoData is `-1e300`; delivered Float32 NoData is
+  `-999999`. Conversion and coverage checks retain Float64 arithmetic until final
+  storage rounding. Float32 overflow and valid elevations rounding to the delivered
+  sentinel stop processing. The report records maximum storage rounding in output
+  elevation units, and its elevation range describes stored samples. Both working
+  and partial files are removed after failure/cancellation. Source
   scale/offset-packed bands and rotated sources are rejected, not misinterpreted.
+- Three actual Windows Float64 outputs passed GDAL processing/read-back but the user
+  reported ORD "Import failed" while the original Float32 tile imported. A separate
+  Float32 copy with finite NoData imported successfully per the user, retaining the
+  full compound CRS and US-survey-foot elevations. This isolates the storage pair,
+  not which of Float64 versus the original extreme NoData alone caused rejection.
 - The live coastal pilot exposed false boundary holes when GDAL applied a source-grid
   cutline before reprojection. A fully covered synthetic constant surface reproduced
   the defect. Warping now retains the interpolation neighborhood; the original
@@ -249,6 +270,13 @@ UTF-16 status and UTF-8 diagnostics. The x64 Windows EXE is built from
 installed Framework compiler. No PowerShell execution/policy change is involved;
 the historical PS1 remains available but is not used by VBA. UI status
 files are UTF-16, TSV fields are sanitized, and full metadata remains in JSON.
+Search additionally writes `cell-size.txt` for the 1-metre DEM collection using
+`1 / horizontal_axis.unit_conversion_factor`; angular-resolution DEMs and LiDAR
+leave it empty. The form fills blanks or updates its previous automatic value,
+preserving manual choices. It uses the validated horizontal CRS rather than master
+unit labels or elevation units. The shared UTF-16 reader returns empty at EOF;
+native testing exposed and fixed a BOM-only file ReadAll error. Native defaults,
+manual preservation and empty-file behavior passed without DGN/settings changes.
 `DoEvents` plus short Sleep yields the ORD UI while inputs are disabled.
 This cooperative model still needs in-ORD reentrancy/pan/close validation.
 

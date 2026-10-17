@@ -17,19 +17,66 @@ except ImportError:
 
 
 class JobTests(unittest.TestCase):
+    def test_cell_size_default_uses_horizontal_crs_units_and_supported_dataset(self):
+        from pyproj import Transformer
+        cases = [('EPSG:26916', 'm', 'dem1m', 1),
+                 ('EPSG:6576', 'us-ft', 'dem1m', 3937/1200),
+                 ('+proj=utm +zone=16 +datum=NAD83 +units=ft +type=crs', 'ft', 'dem1m', 1/0.3048),
+                 ('EPSG:6576', 'us-ft', 'dem13', None),
+                 ('EPSG:6576', 'us-ft', 'lidar', None)]
+        for crs, unit, dataset, expected in cases:
+            with self.subTest(crs=crs, dataset=dataset), tempfile.TemporaryDirectory() as root:
+                x, y = Transformer.from_crs(4326, crs, always_xy=True).transform(-86.8, 36.1)
+                config = dict(request(), action='search', dataset=dataset, source_crs=crs, master_unit=unit,
+                              boundary=[[x,y],[x+20,y],[x+20,y+20],[x,y+20]])
+                with patch('main.TNMClient') as client:
+                    client.return_value.search.return_value = []
+                    run(config, Job(root))
+                value = (Path(root)/'cell-size.txt').read_text(encoding='utf-16').strip()
+                if expected is None:
+                    self.assertEqual(value, '')
+                else:
+                    self.assertAlmostEqual(float(value), expected, places=10)
+
     def test_search_manifest_ui_and_stale_boundary(self):
         with tempfile.TemporaryDirectory() as root:
             folder=Path(root)
             config=dict(request(),action='search',dataset='dem1m')
             with patch('main.TNMClient') as client:
-                client.return_value.search.return_value=[normalize(item(),'dem1m')]
+                product = item()
+                product.update(body='All bare earth elevation values are in meters and are referenced to the North American Vertical Datum of 1988 (NAVD88).',
+                               metaUrl='https://example.org/product/1')
+                client.return_value.search.return_value=[normalize(product,'dem1m')]
                 result=run(config,Job(folder))
             self.assertEqual(result['products'][0]['id'],'1')
             self.assertEqual((folder/'products.tsv').read_bytes()[:2],b'\xff\xfe')
+            row = (folder/'products.tsv').read_text(encoding='utf-16').strip().split('\t')
+            self.assertEqual(len(row), 12)
+            self.assertEqual(row[9:11], ['m', 'EPSG:5703'])
+            self.assertIn('https://example.org/product/1', row[11])
             self.assertIn('search_complete',(folder/'status.txt').read_text(encoding='utf-16'))
+            self.assertNotIn('\r\r\n', (folder/'status.txt').read_bytes().decode('utf-16'))
             config.update(action='process',selected_ids=['1'],search_manifest=str(folder/'search.json'))
             config['boundary'][0][0]+=1
             with self.assertRaisesRegex(ValueError,'changed since search'): run(config,Job(folder))
+
+    @unittest.skipUnless(HAS_GDAL, 'GDAL unavailable')
+    def test_catalog_vertical_conflict_stops_before_transfer(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root)
+            product = dict(item(), body='All bare earth elevation values are in meters and are referenced to the North American Vertical Datum of 1988 (NAVD88).',
+                           metaUrl='https://example.org/product/1')
+            config = dict(request(), action='search', dataset='dem1m')
+            with patch('main.TNMClient') as client:
+                client.return_value.search.return_value = [normalize(product, 'dem1m')]
+                run(config, Job(folder))
+            config.update(action='process', selected_ids=['1'], search_manifest=str(folder/'search.json'))
+            for unit, crs in (('us-ft', 'EPSG:5703'), ('m', 'EPSG:5714')):
+                config['source_vertical'] = {'unit': unit, 'crs': crs, 'evidence': 'Manual declaration conflicting with catalog'}
+                with self.subTest(unit=unit, crs=crs), patch('main.download') as transfer:
+                    with self.assertRaisesRegex(ValueError, 'contradicts selected product metadata'):
+                        run(config, Job(folder))
+                    transfer.assert_not_called()
 
     def test_cooperative_cancel_and_utf16(self):
         with tempfile.TemporaryDirectory() as root:

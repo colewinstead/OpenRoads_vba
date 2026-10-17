@@ -8,6 +8,14 @@
 | Python offline suite | Mac system Python 3.14 + pyproj, no GDAL | 15 passed, 16 skipped; skips are not passes |
 | Python offline suite | Windows test PC, Python 3.14 + pyproj, no GDAL | 15 passed, 16 skipped |
 | Python offline suite | ORD Windows computer, OSGeo4W Python 3.12, GDAL 3.11.3, pyproj 3.7.0, numpy 1.26.4 | **32 passed, no skips** on 2026-10-17 |
+| Metadata-autofill revision | Same Windows GIS runtime | **40 passed, no skips**; explicit body/provenance, unknown/negated/conflicting metadata, TSV propagation and pre-transfer contradiction checks included |
+| Float32 delivery revision | Same Windows GIS runtime | **41 passed, no skips**; Float32 type/finite NoData, exact rounded samples, reported rounding, overflow/rounded-sentinel rejection and working-file cleanup; sandboxed attempt lacked TEMP permissions, rerun with TEMP access passed |
+| Cell-size default revision | Same Windows GIS runtime | **42 passed, no skips**; search suggestions tested in metres, international feet and US survey feet; no assumed spacing for angular DEM/LiDAR datasets |
+| Native cell-size defaults | ORD 26.00.00.154 / Default / 2D; saved metadata replay without network | **Passed** survey-foot/metric suggestions, manual override, blank refill, replacement/clearing of prior automatic values, independence from elevation unit, unchecked grid confirmation and unchanged DGN IDs/settings; empty Unicode reader regression fixed |
+| Actual Windows DEM processing / storage import diagnosis | Three Desktop job reports; cached original | All three dem_complete/zero gaps; user reported Float64 imports failed and original Float32 imports; separate Float32/-999999 diagnostic imported successfully per user, same compound CRS/units/grid |
+| Corrected worker derivatives | Desktop/USGS_ORD_fixed, same three original requests/sources | Regenerated without network; GDAL read-back passed; user confirmed small worker output imports successfully; every sample/grid/CRS/unit matches the importing diagnostic; larger copies and known control pending |
+| Source EPSG suggestion | ORD 26.00.00.154 / Default / 2D | **Passed** native parser/default assertions and user confirmation of EPSG:6576; editable suggestion, verification checkbox initially unchecked |
+| Selected-product vertical autofill | Same model; actual saved two-row live-search TSV loaded through native form code | **Passed** m/EPSG:5703, both full citations, protected detected fields, deselection clearing/manual unlocking, restoration and unchanged IDs/settings; temporary loader/test code removed |
 | Updated suite including standalone launcher | Same Windows GIS runtime | **37 passed, no skips**; five new real-EXE tests cover Unicode/metacharacter paths, invalid inputs, environment isolation, large logs, exit codes and cancellation |
 | Native standalone bridge | ORD 26.00.00.154 / Default / 2D | **Passed** actual VBA -> EXE -> configured Python -> expected invalid-schema exit/status; no network or DGN writes |
 | Live ORD dialog metadata search | Same model; standalone EXE + Windows GIS runtime | **Passed**; user saw products and actual job read-back confirmed search_complete, 2 dem1m candidates, 8-vertex boundary, CRS 6576/us-ft, explicit grid flags, no vertical declaration or data transfer |
@@ -29,17 +37,21 @@
 
 ## Windows ORD computer preflight (2026-10-17)
 
-Current build after the standalone-launcher change: MVBA **395,264 bytes**, SHA-256
-`133da49831ff026344f6d2efd9256601556f3e7cd6cfa205109237707d2ccd37`;
+Current build after the cell-size default: MVBA **538,112 bytes**, SHA-256
+`b60be587c0826fafeb7105ff9dace5b2bab4281b674dd4b90987675d15b905f4`;
 companion EXE **8,192 bytes**, SHA-256
 `d4ed77b988692b40b6ba1405abecdbe1c03270ffd3414b9dec0c1749fb015468`.
 Actual compile/targeted save and the native form/launcher checks passed; five
-production components remain. Evidence: `.runs/ord-20261017/standalone-build.json`.
+production components remain. Final compile was completed by the user and confirmed
+through the disabled terrain-specific compile command; targeted Save returned
+Saved=True. Evidence: `.runs/ord-20261017/cell-size-build.json`.
 The older PowerShell restriction and build snapshots below are historical results;
 current VBA starts the EXE directly. Live dialog Search also passed; actual job
 read-back confirmed two candidates and empty stdout/stderr logs. Evidence:
-`.runs/ord-20261017/live-standalone-search.json`. Live raster processing/import
-remains untested in ORD.
+`.runs/ord-20261017/live-standalone-search.json`. Subsequent Desktop job reports
+prove Windows processing completed; after the storage fix, the user confirmed
+the small regenerated worker output imports. Larger copies and known control
+remain untested in ORD; see the evidence rows above.
 
 - ORD reports **Version 26.00.00.154** through actual COM activation. Windows
   build is **26100.9457**, display version 24H2. No production DGN was opened.

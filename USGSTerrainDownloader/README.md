@@ -12,13 +12,15 @@ has now been assembled, compiled and saved in ORD 26.00.00.154. The included
 `USGSTerrainDownloader.mvba` is a **test build**. A native 2D self-check passed
 form initialization, explicit-confirmation defaults, GCS name display, in-memory
 shape vertices, programmatic boundary acceptance and unchanged DGN IDs/settings.
-The Windows suite now passes **37 tests**, including five standalone-launcher
+The Windows suite now passes **42 tests**, including five standalone-launcher
 tests. An actual ORD bridge test started the EXE and Python and read Python's
 expected invalid-schema response. A live search through the ORD dialog then
 completed and displayed **2 one-metre DEM candidates** for the user's test shape.
+Native checks also passed assigned-GCS EPSG autofill (EPSG:6576) and both products'
+explicit metre/NAVD88 declarations, citations and selection clear/restore behavior.
 The user confirmed normal launch, rectangle
 preview/capture/cancellation and existing-shape acceptance. Numeric coordinate
-agreement, 3D behavior and terrain import have separate acceptance gates.
+agreement, 3D behavior and complete terrain-import validation have separate acceptance gates.
 Use the [acceptance plan](TEST_PLAN.md)
 before production use. This is not survey-grade data or an automatically created
 native ORD Terrain Model.
@@ -26,7 +28,12 @@ native ORD Terrain Model.
 Installed ORD 26.00.00.154 API signatures have now been inspected. The application
 now uses the included standalone `python\launch_worker.exe`; it does not require
 PowerShell scripts. The earlier PowerShell launch failure remains recorded as
-history. Live download/processing/import acceptance remains outstanding. See the
+history. Three actual Windows DEM jobs completed; their Float64 deliveries failed
+ORD import per the user. A separate Float32/finite-NoData copy imported successfully.
+The worker now delivers this storage format while retaining Float64 calculations,
+compound CRS and explicit Z units. The user also confirmed successful import of
+the corrected worker-generated small terrain. Larger copies and known control
+remain separate gates. See the
 [Windows preflight evidence](TEST_PLAN.md#windows-ord-computer-preflight-2026-10-17).
 
 Continuing on another computer? Read [HANDOFF.md](HANDOFF.md) and the
@@ -37,7 +44,8 @@ Continuing on another computer? Read [HANDOFF.md](HANDOFF.md) and the
 - Modeless, programmatically assembled UserForm; two-point rectangle dynamics
   and active-model simple straight-sided shape selection. Preview elements exist
   only in memory. No rectangle is written, and no active settings are changed.
-- Best-effort Bentley GCS **name** probe, model working-unit label, mandatory
+- Best-effort Bentley GCS **name** probe and explicit Source EPSG suggestion,
+  model working-unit label, mandatory
   user-confirmed projected EPSG/WKT, master-unit type and grid-coordinate mapping.
   No Bentley-name-to-EPSG guessing. Local/ground transforms are unsupported.
 - PROJ horizontal transformations with conventional XY order, no ballpark fallback,
@@ -52,6 +60,8 @@ Continuing on another computer? Read [HANDOFF.md](HANDOFF.md) and the
   the confirmed DGN CRS, **separate numeric elevation-unit conversion**, GeoTIFF 1.1
   compound horizontal/vertical metadata and read-back verification.
 - Coverage-gap and overlap gates, source/operation reports, and output-folder opening.
+- Float32 delivery with finite NoData for ORD import; Float64 processing and unit
+  conversion, overflow/collision rejection and measured storage rounding in the report.
 - LiDAR search/download and original preservation. Optional **backend-only** PDAL
   metadata/schema inspection; bare-earth rasterization and classification are deferred.
 
@@ -121,8 +131,19 @@ A system-wide GIS installation may separately require your IT administrator.
 
 Model master units fill only when ORD's numeric unit definition matches metres,
 international feet or US survey feet; labels alone are insufficient. The CRS/grid
-verification checkbox remains unchecked. Source vertical CRS/unit/evidence remain
-blank until verified against the selected data; the dataset name is not evidence.
+verification checkbox remains unchecked. Source EPSG/WKT is suggested only when
+the assigned GCS's Source property contains a plain EPSG reference; this does not
+verify local modifiers or grid mapping. No GCS-name-to-EPSG lookup is guessed.
+
+Selecting products fills the source elevation unit, vertical CRS and **Metadata
+citation** when every selected record has a supported explicit declaration and
+they agree. Currently the parser recognizes the full USGS `body` declaration that
+bare-earth elevations are metres referenced to NAVD88 (EPSG:5703), retaining each
+product ID, metadata URL and exact statement. It does not infer elevation units
+from horizontal units, filenames, the DGN's vertical datum or the dataset label.
+Detected fields are protected. Changing the selection clears stale declarations;
+missing, unsupported or conflicting metadata leaves editable fields for manual
+verification. Source metadata is cross-checked against embedded raster tags later.
 
 The standalone EXE launches Python in a dedicated child environment. ORD's
 environment, ProjectWise/workspace settings, VBA autoload configuration and
@@ -197,7 +218,7 @@ changes are required for explicit ribbon load/run.
    are rejected. No boundary is added to the DGN.
 3. Inspect the detected Bentley GCS name and master-unit label. Independently
    verify the model GCS, datum realization, global-origin/control-point behavior,
-   modifiers and coordinate readout. Enter the equivalent projected EPSG/WKT,
+   modifiers and coordinate readout. Review the suggested projected EPSG/WKT or enter it,
    select `m`, `ft` (international) or `us-ft`, then confirm **grid XY**. A label
    such as `ft` alone is not evidence of the foot definition. No offset, rotation
    or ground-to-grid scale is applied by this version. Do not confirm a local or
@@ -210,17 +231,24 @@ changes are required for explicit ribbon load/run.
    metadata links. Only then select products in the list. Publication date is not
    an accuracy ranking. Some geographic bounding-box candidates may fall outside
    an irregular boundary; processing uses the original polygon.
-6. For DEM processing, confirm each selected source's actual **vertical** datum
-   and unit from source-specific metadata. Enter the source elevation unit,
-   vertical CRS (for example `EPSG:5703` only for verified NAVD88), and a metadata
-   URL/report citation in **Evidence / metadata**. The form applies this common
-   declaration to all selected tiles. Embedded contradictory tags cause failure;
-   heterogeneous evidence requires separate runs or per-product backend declarations.
+6. For DEM processing, review the source elevation unit, vertical CRS and
+   **Metadata citation** filled from supported selected-product declarations.
+   All selected records must agree. If metadata cannot be resolved, verify every
+   selected source and enter the missing values/citations manually. The form applies
+   this common declaration to all selected tiles. Contradictions with detected
+   catalog metadata stop before transfer; embedded contradictory tags also cause
+   failure. Heterogeneous sources require separate compatible runs.
 7. Set output elevation units independently of horizontal units. Enter output
    cell size in the **source horizontal CRS's native units**, which can differ
    from the model's displayed master units. A 1-m cell is `1` in a metre CRS;
    represent 1 metre as `3.28083333333333` in a US-survey-foot CRS. Selecting a finer
    grid does not improve source accuracy. Compatible tiles mosaic automatically.
+   After Search, the 1-metre DEM dataset fills this cell size automatically from
+   the validated CRS units. It remains editable; a manual value survives subsequent
+   searches. Automatic values update when the next search uses different units and
+   clear for datasets without a supported default. The 1/3-arc-second and LiDAR
+   choices do not assume a metre spacing. Older search folders lack this suggestion;
+   search again or enter the value manually.
 8. Review overlaps, total size and the hard GiB cap (default 5). Select a coherent
    collection. Overlapping coverage fails unless you explicitly accept **last
    selected list row wins**. Gaps inside the polygon fail by default; the optional

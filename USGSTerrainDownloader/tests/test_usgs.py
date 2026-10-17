@@ -25,6 +25,29 @@ def item(n=1):
 
 
 class ClientTests(unittest.TestCase):
+    def test_explicit_vertical_metadata_with_provenance(self):
+        p = item()
+        p['moreInfo'] = 'All bare earth elevation values are in [...]'
+        p['body'] = ('Description. All bare earth elevation values are in meters and are referenced to the '
+                     'North American Vertical Datum of 1988 (NAVD88). Other products are available.')
+        p['metaUrl'] = 'https://www.sciencebase.gov/catalog/item/test'
+        result = normalize(p, 'dem1m')['vertical_confirmation']
+        self.assertEqual((result['unit'], result['crs']), ('m', 'EPSG:5703'))
+        self.assertIn(p['metaUrl'], result['evidence'])
+        self.assertIn('USGS TNM source 1', result['evidence'])
+        self.assertIn('All bare earth elevation values are in meters', result['evidence'])
+
+    def test_missing_ambiguous_or_contradictory_vertical_metadata_stays_unknown(self):
+        statement = ('All bare earth elevation values are in meters and are referenced to the '
+                     'North American Vertical Datum of 1988 (NAVD88).')
+        for body in ('', 'NAVD88; horizontal coordinates are meters.', 'Not ' + statement,
+                     statement + ' Elevations use NGVD29.', statement + ' Elevations are feet.'):
+            with self.subTest(body=body):
+                p = dict(item(), body=body, metaUrl='https://example.org/metadata')
+                self.assertIsNone(normalize(p, 'dem1m')['vertical_confirmation'])
+        self.assertIsNone(normalize(dict(item(), body=statement), 'dem1m')['vertical_confirmation'])
+        self.assertIsNone(normalize(dict(item(), body=statement, metaUrl='http://example.org/metadata'), 'dem1m')['vertical_confirmation'])
+
     def test_catalog_query_pagination_dedup(self):
         urls=[]
         def open_url(url):

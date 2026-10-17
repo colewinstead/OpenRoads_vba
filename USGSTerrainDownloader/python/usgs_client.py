@@ -2,6 +2,7 @@
 import hashlib
 import json
 import math
+import re
 import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -105,6 +106,27 @@ class TNMClient:
         return products
 
 
+def vertical_metadata(item, kind):
+    if kind == "lidar":
+        return None
+    text = " ".join(str(item.get("body") or "").split())
+    statement = ("All bare earth elevation values are in meters and are referenced to the "
+                 "North American Vertical Datum of 1988 (NAVD88).")
+    # shortcut: recognize this explicit USGS declaration only; add other formats with verified fixtures.
+    match = re.search(r"(?:^|[.!?]\s+)(" + re.escape(statement) + r")", text, re.IGNORECASE)
+    if not match or re.search(r"\b(?:NGVD\s*29|EGM\s*(?:96|2008)|ellipsoid\w*|feet|foot)\b", text, re.IGNORECASE):
+        return None
+    source = str(item.get("metaUrl") or "")
+    if not source:
+        return None
+    try:
+        https_url(source)
+    except ValueError:
+        return None
+    return {"unit": "m", "crs": "EPSG:5703",
+            "evidence": f"USGS TNM source {item.get('sourceId', '')}; {source}; {match.group(1)}"}
+
+
 def normalize(item, kind):
     urls = item.get("urls") or {}
     url = (item.get("downloadLazURL") or urls.get("LAZ") or urls.get("LAS") or item.get("downloadURL")) if kind == "lidar" else (
@@ -119,13 +141,15 @@ def normalize(item, kind):
             and bbox[0] < bbox[2] and bbox[1] < bbox[3], "Product has missing/invalid geographic coverage.")
     size = item.get("sizeInBytes")
     require(size is None or isinstance(size, (int, float)) and size >= 0, "Invalid product size.")
+    vertical = vertical_metadata(item, kind)
     return {"id": str(item.get("sourceId") or hashlib.sha256(url.encode()).hexdigest()),
             "title": str(item.get("title") or "Untitled product"), "url": url,
             "bytes": int(size) if size else None, "bbox": bbox, "kind": kind,
             "resolution": {"dem1m": "1 meter", "dem13": "1/3 arc-second", "lidar": "point cloud"}[kind],
             "publication": item.get("publicationDate"), "updated": item.get("lastUpdated"),
             "acquisition": item.get("acquisitionDate"), "metadata_url": item.get("metaUrl"),
-            "vertical": "Unverified: inspect source and product metadata before processing",
+            "vertical": "Metadata: metres / NAVD88" if vertical else "Unverified: inspect source and product metadata before processing",
+            "vertical_confirmation": vertical,
             "raw": item}
 
 

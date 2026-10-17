@@ -142,8 +142,10 @@ ORD 2026 VBA dialog for temporary rectangle/simple-shape boundaries, official US
 DEM/LiDAR searches and a Python GDAL/PROJ terrain-raster workflow. CRS/master units
 and source vertical datum/units require explicit verification. The included test
 MVBA compiled in ORD 26.00.00.154. Native 2D form/GCS/shape/boundary and standalone
-worker-bridge checks passed, along with 37 Windows tests. Basic picking was
-user-confirmed; known control, live processing and native terrain import have
+worker-bridge checks passed, along with 42 Windows tests. Basic picking was
+user-confirmed; three Windows DEM jobs completed. After Float64 import failures,
+the user confirmed a Float32/finite-NoData copy imported; the worker now delivers
+that storage format. Known control and complete native terrain validation have
 separate acceptance gates. This tool has its own explicit
 unit contract; the legacy feet assumptions below do not apply to it.
 

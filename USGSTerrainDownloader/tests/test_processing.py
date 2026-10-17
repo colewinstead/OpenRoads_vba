@@ -48,7 +48,10 @@ class ProcessingTests(unittest.TestCase):
         source=self.raster()
         report=self.process([source])
         ds=gdal.Open(report['output'])
-        self.assertTrue(np.allclose(ds.ReadAsArray(),328.0833333333333,atol=1e-9))
+        self.assertEqual(ds.ReadAsArray()[0,0],np.float32(100*3937/1200))
+        self.assertEqual(ds.GetRasterBand(1).DataType,gdal.GDT_Float32)
+        self.assertEqual(ds.GetRasterBand(1).GetNoDataValue(),-999999)
+        self.assertAlmostEqual(report['max_storage_rounding_error'],abs(float(np.float32(100*3937/1200))-100*3937/1200))
         self.assertEqual(ds.GetRasterBand(1).GetUnitType(),'us-ft')
         self.assertEqual(report['gap_cells'],0)
         self.assertEqual(report['valid_boundary_cells'],4)
@@ -63,7 +66,7 @@ class ProcessingTests(unittest.TestCase):
         report=self.process([source],c)
         from pyproj import CRS
         ds=gdal.Open(report['output'])
-        self.assertAlmostEqual(ds.ReadAsArray()[0,0],100/0.3048)
+        self.assertEqual(ds.ReadAsArray()[0,0],np.float32(100/0.3048))
         vertical=CRS.from_wkt(ds.GetProjection()).sub_crs_list[1]
         self.assertEqual(vertical.axis_info[0].unit_conversion_factor,0.3048)
 
@@ -75,8 +78,8 @@ class ProcessingTests(unittest.TestCase):
         c['boundary']=[list(t.transform(x,y)) for x,y in self.config['boundary']]
         b=prepare_boundary(c)
         result=self.process([path],c,b)
-        a=gdal.Open(result['output']).ReadAsArray()
-        self.assertTrue(np.allclose(a[a!=-1e300],123.45,atol=1e-8))
+        ds=gdal.Open(result['output']);a=ds.ReadAsArray()
+        self.assertTrue(np.all(a[a!=ds.GetRasterBand(1).GetNoDataValue()]==np.float32(123.45)))
         self.assertEqual(result['elevation_multiplier'],1)
 
     def test_compatible_tiles_mosaic(self):
@@ -111,7 +114,7 @@ class ProcessingTests(unittest.TestCase):
         a=self.raster(); b=self.raster('b.tif',values=np.full((2,2),200.))
         result=self.process([a,b],dict(self.config,overlap_order_confirmed=True))
         ds=gdal.Open(result['output'])
-        self.assertAlmostEqual(ds.ReadAsArray()[0,0],200*3937/1200,places=10)
+        self.assertEqual(ds.ReadAsArray()[0,0],np.float32(200*3937/1200))
         self.assertEqual(result['overlaps'],[[0,1]])
 
     def test_cancel_during_processing_removes_partial(self):
@@ -125,6 +128,17 @@ class ProcessingTests(unittest.TestCase):
             process_dem([a],[self.product],self.config,self.boundary,folder,check=cancel)
         self.assertFalse((folder/'terrain.tif').exists())
         self.assertFalse((folder/'terrain.partial.tif').exists())
+        self.assertFalse((folder/'terrain.working.tif').exists())
+
+    def test_float32_overflow_and_rounded_nodata_collision_rejected(self):
+        for value in (1e39,-999999.001):
+            with self.subTest(value=value):
+                source=self.raster(values=np.full((2,2),value))
+                with self.assertRaisesRegex(ValueError,'Float32 elevation overflow/NoData collision'):
+                    self.process([source],dict(self.config,elevation_unit='m'))
+                self.assertTrue(source.exists())
+                for name in ('terrain.tif','terrain.partial.tif','terrain.working.tif'):
+                    self.assertFalse((self.root/'output'/name).exists())
 
     def test_gap_rejected_and_original_retained(self):
         a=self.raster(values=np.array([[100.,-9999],[100.,100.]]))

@@ -9,6 +9,63 @@ contains the original task, implementation activity, and the latest continuation
 
 ## ORD-computer continuation (2026-10-17)
 
+Latest cell-size change: after Search, the 1-metre DEM dataset now suggests one
+metre in the validated horizontal CRS's native units (EPSG:6576 => 3.28083333333).
+It fills blanks/replaces its previous automatic value, preserving manual overrides;
+unsupported angular DEM/LiDAR defaults stay blank. Source master units and elevation
+units are not used to guess the horizontal CRS unit. The worker writes UTF-16
+cell-size.txt; the form reads it in LoadProducts. Native testing found and fixed
+the shared reader's BOM-only/empty-file ReadAll error. **42 Windows tests passed,
+no skips**. Native cell-size/baseline/launcher checks passed; test code was removed.
+The user completed the final Debug Compile when COM did not complete it; the
+terrain-specific compile command was observed disabled in design mode. Targeted
+Save returned Saved=True with five source-matching components, and Main reopened.
+Evidence: native-cell-size.json, native-cell-size-baseline.json,
+native-cell-size-launcher.json and cell-size-build.json in .runs/ord-20261017/.
+
+Preceding fix: the user reported "Import failed" for three processed Desktop terrains,
+while the cached original imported. Actual reports show dem_complete with zero gaps;
+outputs were Float64 / NoData -1e300, versus the original Float32 / -999999.
+A separate Float32/-999999 copy retaining compound CRS/XY/us-ft imported successfully
+per the user. The worker now retains Float64 warp/unit arithmetic and delivers
+Float32/-999999, rejecting overflow and rounded-sentinel collisions and reporting
+maximum storage rounding. **41 Windows tests passed, no skips.** The first sandboxed
+test attempt was blocked by TEMP permissions; the actual unsandboxed suite passed.
+Three corrected derivatives were generated from cached originals without network
+into Desktop/USGS_ORD_fixed; prior outputs/originals were preserved. Each passed
+GDAL CRS/type/unit/read-back checks. The user then imported the regenerated small
+worker output successfully in ORD. Every sample, grid, compound CRS and elevation
+unit also matched the separately importing diagnostic copy. Larger regenerated
+copies and known control remain untested in ORD.
+Evidence: desktop-import-failures.json, import-float32-trial.json and
+desktop-reprocessed-float32.json under .runs/ord-20261017/. The MVBA is unchanged by
+this worker-only fix. Which of sample type versus extreme NoData alone caused the
+rejection is unproven; complete known-control/large-import gates remain separate.
+
+Preceding work: the user requested automatic selected-source metadata and source EPSG
+fill. The earlier inspection missed raw.body: raw.moreInfo was truncated, but body
+already explicitly declares metres/NAVD88 for both selected Tennessee tiles.
+The worker now retains a conservative detected vertical contract/citation and emits
+12 TSV columns. The form fills/protects matching selected declarations, clears them
+on real selection changes and permits manual entry for unresolved records. A new
+backend check rejects contradictory catalog declarations before transfer; existing
+embedded-tag, mixed-datum and vertical-unit safeguards remain intact. The UTF-16
+writer now avoids Windows doubled-CR translation. **40 offline tests passed.**
+Native compile plus fresh-form/launcher regressions passed for the metadata form;
+the user confirmed all three fields filled. A native check of both saved live-search
+rows passed: metres, EPSG:5703, two complete citations, protected detected fields,
+selection clear/restore and unchanged IDs/settings. Separate queued checks could
+not reliably observe the live form; the successful check loaded the actual saved
+TSV through LoadProducts using a temporary form method, then removed that method.
+
+New source code also suggests EPSG from the assigned GCS's plain Source reference,
+leaving it editable and the verification checkbox unchecked. Parser/default
+assertions passed in ORD with EPSG:6576, and the user confirmed the prefilled value
+and another successful search. Temporary diagnostics were removed; the final
+five-component project passed Debug Compile and targeted Save (Saved=True).
+Evidence: native-epsg-default.json, native-vertical-two-products.json and
+metadata-epsg-build.json in .runs/ord-20261017/.
+
 Installed ORD **26.00.00.154** CHM/type-library signatures have been inspected;
 see [API_NOTES.md](API_NOTES.md). The actual `GetGCS(True)` call on an unassigned
 seed returned Nothing; the actual application CallByName/form probe subsequently
@@ -38,8 +95,8 @@ uses `python\launch_worker.exe` and no longer invokes PowerShell. The old PS1/te
 remain for existing command-line workflows.
 
 **The terrain project is now assembled, compiled and saved**, with the standalone
-test build at `USGSTerrainDownloader.mvba` (**395,264 bytes**, SHA-256
-`133da49831ff026344f6d2efd9256601556f3e7cd6cfa205109237707d2ccd37`).
+test build at `USGSTerrainDownloader.mvba` (**538,112 bytes**, SHA-256
+`b60be587c0826fafeb7105ff9dace5b2bab4281b674dd4b90987675d15b905f4`).
 Keep the companion `python\launch_worker.exe` (**8,192 bytes**, SHA-256
 `d4ed77b988692b40b6ba1405abecdbe1c03270ffd3414b9dec0c1749fb015468`) beside main.py.
 The `.runs/ord-20261017/USGSTerrainDownloader.mvba` project is an older build copy,
@@ -75,15 +132,15 @@ in C# `AsVertexList()` is a method, while VBA allows the no-parentheses spelling
 The user requested autofill of the highlighted fields. Source changes now discover
 the source directory from the single loaded terrain project, read the documented
 local runtime capture, and suggest master units from the numeric metre definition.
-The confirmation checkbox and all vertical declarations remain manual. The extended
+At that earlier stage the checkbox and vertical declarations remained manual. The extended
 native test covers metre/international-foot/survey-foot/custom/unitless/invalid
 unit definitions and form defaults. Actual Debug Compile passed, then manual F5
 produced `native-autofill.json` with status passed: exact `us-ft` detection, all
 three runtime paths present, manual confirmations retained, identical DGN IDs and
 checked settings. The temporary test module was removed, the five-component
 application recompiled and targeted Save returned Saved=True. The binary/hash above
-is the subsequent standalone-launcher build. Historical autofill evidence is
-`autofill-build.json`; current evidence is `standalone-build.json`.
+is the subsequent cell-size-default build. Historical autofill evidence is
+`autofill-build.json`; current evidence is `cell-size-build.json`.
 
 The standalone EXE is built from `python/WorkerLauncher.cs` by
 `python/build_launcher.py` using the installed Framework64 compiler. It applies

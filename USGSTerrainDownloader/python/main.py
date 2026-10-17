@@ -11,7 +11,7 @@ from pathlib import Path
 
 DEPENDENCY_ERROR = None
 try:
-    from crs_utils import prepare_boundary, require
+    from crs_utils import prepare_boundary, horizontal_crs, require
     from usgs_client import TNMClient, download
 except ImportError as error:
     DEPENDENCY_ERROR = str(error)
@@ -29,7 +29,7 @@ def clean(value):
 
 def ui_file(path, lines):
     temp = Path(str(path) + ".tmp")
-    temp.write_text("\r\n".join(lines), encoding="utf-16")
+    temp.write_text("\r\n".join(lines), encoding="utf-16", newline="")
     # An ORD reader may briefly hold the old file on Windows.
     for attempt in range(20):
         try:
@@ -79,9 +79,15 @@ def run(config, job):
         atomic_json(job.folder / "search.json", manifest)
         ui_file(job.folder / "products.tsv", ["\t".join(clean(v) for v in (
             p["id"], p["title"], p["bytes"], p["publication"], p["resolution"], p["bbox"],
-            p["vertical"], p["metadata_url"], json.dumps(p["raw"], ensure_ascii=True))) for p in products])
+            p["vertical"], p["metadata_url"], json.dumps(p["raw"], ensure_ascii=True),
+            (p.get("vertical_confirmation") or {}).get("unit", ""),
+            (p.get("vertical_confirmation") or {}).get("crs", ""),
+            (p.get("vertical_confirmation") or {}).get("evidence", ""))) for p in products])
         ui_file(job.folder / "extent.txt", [f"WGS84 lon/lat bbox: {boundary['bbox']}",
             f"{boundary['crs_name']} | {boundary['horizontal_unit']} | {boundary['area_m2']/1e6:.3f} km2"])
+        # The angular 1/3-arc-second collection has no single metre spacing to assume.
+        ui_file(job.folder / "cell-size.txt", [format(1 / horizontal_crs(boundary["crs_wkt"]).axis_info[0].unit_conversion_factor, ".12g")]
+                if config["dataset"] == "dem1m" else [])
         job.state = "search_complete"
         job.status(f"{len(products)} overlapping candidates. Review metadata and select products; search bbox may overselect irregular boundaries.", True)
         return manifest
@@ -107,7 +113,12 @@ def run(config, job):
         from terrain_processor import gis, vertical_contract
         gis()
         for p in selected:
-            vertical_contract(config.get("vertical_confirmations", {}).get(p["id"], config.get("source_vertical")))
+            confirmation = config.get("vertical_confirmations", {}).get(p["id"], config.get("source_vertical"))
+            datum = vertical_contract(confirmation)
+            detected = p.get("vertical_confirmation")
+            if detected:
+                require(confirmation["unit"] == detected["unit"] and datum.datum == vertical_contract(detected).datum,
+                        f"Vertical declaration contradicts selected product metadata: {p['title']}")
     report = {"schema_version": 1, "utc": datetime.now(timezone.utc).isoformat(), "state": "downloading",
               "request": config, "search_manifest": str(manifest_path.resolve()), "boundary": boundary,
               "products": selected, "downloads": [], "sources_preserved": True,
@@ -145,6 +156,7 @@ def run(config, job):
                 "Import terrain.tif manually in a disposable ORD design model first.\n"
                 "Review report.json: horizontal CRS/native units, vertical datum, separate elevation unit, gaps and overlaps.\n"
                 "GeoTIFF is a terrain raster, not a native ORD Terrain Model or a certified survey.\n"
+                "Delivery uses Float32 samples and finite NoData; report.json records the maximum storage rounding in output elevation units.\n"
                 "Use ORD's installed Terrain > Create From File workflow if GeoTIFF is supported in your build; otherwise use an approved GIS conversion.\n"
                 "Set/verify the import elevation units; compare known control and metadata before project use.\n"
                 "Raster attachment/terrain creation are not automated by this VBA tool.\n", encoding="utf-8")

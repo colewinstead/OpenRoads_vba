@@ -32,6 +32,11 @@ be two-dimensional and projected, with conventional east/north axes. Dataset key
 Search writes `search.json`, `products.tsv`, `extent.txt`, `status.json` and
 `status.txt` beside the request. Products start unselected. Keep `search.json`
 unchanged: its full raw catalog metadata is the source-selection record.
+Search also writes UTF-16 `cell-size.txt`: the 1-metre dataset suggests one metre
+converted to the validated horizontal CRS's native units; other datasets leave it
+empty. The form fills a blank field or replaces its preceding automatic value,
+preserving manual overrides. Process requests still require an explicit positive
+`resolution`; this suggestion does not bypass the CRS/grid confirmation.
 
 ## Process
 
@@ -66,6 +71,15 @@ source vertical declaration can be replaced per product using
 "evidence": "source-specific citation"}}`. Each datum must agree; this interface
 cannot perform vertical datum transformations. Mixed source elevation units are
 rejected even with separate declarations.
+
+The form may fill this explicit request declaration from supported full catalog
+metadata when every selected product agrees, retaining each source's citation.
+This is not a default datum. Unsupported, missing or conflicting metadata requires
+manual verification. Search products retain an optional `vertical_confirmation`;
+processing rejects a requested unit/datum that contradicts that detected record.
+Headless requests still require the explicit declarations above. `products.tsv`
+now has 12 fields: its original nine plus detected unit, vertical CRS and citation;
+update the Python worker and MVBA together.
 
 Selected products retain their order in the search manifest; the last selected
 row has priority when overlaps are explicitly accepted. The ring/CRS fingerprint

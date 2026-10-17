@@ -174,7 +174,8 @@ def process_dem(paths, products, config, boundary, folder, check=lambda: None, p
         require(operation.definition not in ("", "unavailable until proj_trans is called"),
                 "PROJ could not resolve the horizontal operation.")
     vrt_path, temp, output = folder / "mosaic.vrt", folder / "terrain.partial.tif", folder / "terrain.tif"
-    require(not output.exists() and not temp.exists(), "Output already exists; use a new run folder.")
+    working = folder / "terrain.working.tif"
+    require(not output.exists() and not temp.exists() and not working.exists(), "Output already exists; use a new run folder.")
     callback_error = []
     def callback(fraction, message, data):
         try:
@@ -184,8 +185,8 @@ def process_dem(paths, products, config, boundary, folder, check=lambda: None, p
         except Exception as error:
             callback_error.append(error)
             return 0
-    nodata = -1e300
-    vrt = warped = band = mask = verify = None
+    nodata, output_nodata = -1e300, -999999.0
+    vrt = warped = band = mask = verify = delivery = output_band = None
     try:
         vrt = gdal.BuildVRT(str(vrt_path), [str(p) for p in paths],
                             options=gdal.BuildVRTOptions(resolution="highest", strict=True))
@@ -193,7 +194,7 @@ def process_dem(paths, products, config, boundary, folder, check=lambda: None, p
         vrt.FlushCache()
         progress("Processing: mosaic and horizontal reprojection")
         try:
-            warped = gdal.Warp(str(temp), vrt, options=gdal.WarpOptions(
+            warped = gdal.Warp(str(working), vrt, options=gdal.WarpOptions(
                 format="GTiff", dstSRS=target.to_wkt(), coordinateOperation=operation.definition,
                 outputBounds=bounds, xRes=resolution, yRes=resolution,
                 outputType=gdal.GDT_Float64, dstNodata=nodata,
@@ -210,8 +211,15 @@ def process_dem(paths, products, config, boundary, folder, check=lambda: None, p
         mask.SetGeoTransform(warped.GetGeoTransform()); mask.SetProjection(target.to_wkt())
         gdal.RasterizeLayer(mask, [1], layer, burn_values=[1])
         band = warped.GetRasterBand(1)
+        # ORD accepted Float32 with finite NoData where the prior Float64 delivery failed.
+        delivery = gdal.GetDriverByName("GTiff").Create(str(temp), warped.RasterXSize, warped.RasterYSize, 1,
+            gdal.GDT_Float32, options=["TILED=YES", "COMPRESS=DEFLATE", "BIGTIFF=IF_SAFER", "GEOTIFF_VERSION=1.1"])
+        delivery.SetGeoTransform(warped.GetGeoTransform())
+        output_band = delivery.GetRasterBand(1)
+        output_band.SetNoDataValue(output_nodata)
         valid_count = expected = gaps = 0
         minimum, maximum = math.inf, -math.inf
+        rounding_error = 0.0
         for y in range(0, warped.RasterYSize, 256):
             for x in range(0, warped.RasterXSize, 256):
                 check()
@@ -227,11 +235,19 @@ def process_dem(paths, products, config, boundary, folder, check=lambda: None, p
                 # Float64 conversion applies only to valid samples, independently of XY warp.
                 a[valid] *= factor
                 require(np.isfinite(a[valid]).all() and not np.any(a[valid] == nodata), "Elevation conversion overflow/NoData collision.")
+                with np.errstate(over="ignore"):
+                    rounded = a[valid].astype(np.float32)
+                require(np.isfinite(rounded).all() and not np.any(rounded == output_nodata),
+                        "Float32 elevation overflow/NoData collision; output not released.")
+                if rounded.size:
+                    rounding_error = max(rounding_error, float(np.max(np.abs(rounded.astype(np.float64) - a[valid]))))
+                a[valid] = rounded
+                a[~valid] = output_nodata
                 samples = a[valid & inside]
                 if samples.size:
                     minimum = min(minimum, float(samples.min())); maximum = max(maximum, float(samples.max()))
                     valid_count += int(samples.size)
-                band.WriteArray(a, x, y)
+                output_band.WriteArray(a, x, y)
             progress(f"Processing: elevation units / coverage {min(y+256, warped.RasterYSize)}/{warped.RasterYSize} rows")
         require(expected > 0 and valid_count > 0, "No valid DEM cell centers inside boundary. Reduce cell size or verify coverage.")
         require(gaps == 0 or config.get("allow_gaps") is True,
@@ -243,19 +259,23 @@ def process_dem(paths, products, config, boundary, folder, check=lambda: None, p
         # GDAL GeoTIFF needs the vertical UNIT authority to retain non-metre units.
         output_srs.SetAuthority("COMPD_CS|VERT_CS|UNIT", "EPSG",
                                 {"m": 9001, "ft": 9002, "us-ft": 9003}[output_unit])
-        warped.SetSpatialRef(output_srs)
-        band.SetUnitType(output_unit)
-        warped.SetMetadataItem("VERTICAL_DATUM", datums[0].datum.name)
-        warped.SetMetadataItem("ELEVATION_UNIT", output_unit)
-        warped.SetMetadataItem("VERTICAL_OPERATION", "Unit scaling only; no vertical datum transformation")
-        warped.SetMetadataItem("SOURCE_REPORT", "report.json")
-        band.FlushCache(); warped.FlushCache(); band = None
+        delivery.SetSpatialRef(output_srs)
+        output_band.SetUnitType(output_unit)
+        delivery.SetMetadataItem("VERTICAL_DATUM", datums[0].datum.name)
+        delivery.SetMetadataItem("ELEVATION_UNIT", output_unit)
+        delivery.SetMetadataItem("VERTICAL_OPERATION", "Unit scaling only; no vertical datum transformation")
+        delivery.SetMetadataItem("SOURCE_REPORT", "report.json")
+        output_band.FlushCache(); delivery.FlushCache(); output_band = None
+        delivery.Close(); delivery = None
+        band = None
         warped.Close(); warped = None
         mask.Close(); mask = None
         vrt.Close(); vrt = None
         verify = gdal.Open(str(temp))
         require(verify is not None and CRS.from_wkt(verify.GetProjection()).equals(compound), "Output CRS verification failed.")
         require(verify.GetRasterBand(1).GetUnitType() == output_unit, "Output elevation unit tag verification failed.")
+        require(verify.GetRasterBand(1).DataType == gdal.GDT_Float32 and
+                verify.GetRasterBand(1).GetNoDataValue() == output_nodata, "Output storage verification failed.")
         require(verify.GetRasterBand(1).Checksum() >= 0, "Output read-back checksum failed.")
         geotransform = list(verify.GetGeoTransform())
         verify.Close(); verify = None
@@ -265,6 +285,8 @@ def process_dem(paths, products, config, boundary, folder, check=lambda: None, p
                 "horizontal_pipeline": operation.definition, "horizontal_accuracy_m": operation.accuracy,
                 "vertical_datum": datums[0].datum.name, "vertical_unit": output_unit,
                 "elevation_multiplier": factor, "vertical_transformation": "none; unit conversion only",
+                "band_type": "Float32", "nodata": output_nodata,
+                "max_storage_rounding_error": rounding_error, "rounding_error_unit": output_unit,
                 "resolution": resolution, "resampling": "bilinear", "geotransform": geotransform,
                 "clipping": "target-grid polygon cell centers after horizontal resampling" if config.get("clip", True) else "disabled",
                 "valid_boundary_cells": valid_count, "expected_boundary_cells": expected,
@@ -272,14 +294,15 @@ def process_dem(paths, products, config, boundary, folder, check=lambda: None, p
                 "elevation_range": [minimum, maximum], "gdal_version": gdal.VersionInfo("--version"),
                 "warning": "Not survey-grade. No vertical datum shift performed. Validate with project control before design use."}
     finally:
-        band = None
-        for dataset in (verify, warped, mask, vrt):
+        band = output_band = None
+        for dataset in (verify, delivery, warped, mask, vrt):
             if dataset is not None:
                 with suppress(RuntimeError):
                     dataset.Close()
-        verify = warped = mask = vrt = None
+        verify = delivery = warped = mask = vrt = None
         # A failed/cancelled raster is never named terrain.tif.
         temp.unlink(missing_ok=True)
+        working.unlink(missing_ok=True)
 
 
 def inspect_lidar(path, executable, check=lambda: None):

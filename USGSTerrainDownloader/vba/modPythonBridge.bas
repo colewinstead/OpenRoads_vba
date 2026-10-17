@@ -40,7 +40,7 @@ Public Function TerrainReadUI(ByVal path As String) As String
     Set fs = CreateObject("Scripting.FileSystemObject")
     If Not fs.FileExists(path) Then Exit Function
     Set stream = fs.OpenTextFile(path, 1, False, -1)
-    TerrainReadUI = stream.ReadAll
+    If Not stream.AtEndOfStream Then TerrainReadUI = stream.ReadAll
     stream.Close
 End Function
 

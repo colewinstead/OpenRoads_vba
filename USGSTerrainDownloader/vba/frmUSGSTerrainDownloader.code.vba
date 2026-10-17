@@ -21,6 +21,8 @@ Private chkOverlap As MSForms.CheckBox, chkGaps As MSForms.CheckBox, chkUnknown 
 Private lblExtent As MSForms.Label, lblStatus As MSForms.Label, lblTotals As MSForms.Label
 Private mBusy As Boolean, mJob As String, mSearchFolder As String, mLastFolder As String
 Private mRows() As String
+Private mVerticalSelection As String, mDetectedVertical As Boolean
+Private mDefaultResolution As String
 
 Private Function Label(ByVal name As String, ByVal caption As String, ByVal x As Single, ByVal y As Single, ByVal w As Single, Optional ByVal h As Single = 18) As MSForms.Label
     Set Label = Me.Controls.Add("Forms.Label.1", name, True)
@@ -78,8 +80,8 @@ Private Sub UserForm_Initialize()
     Set cmdRectangle = Button("cmdRectangle", "Draw Rectangle", 18, 67, 165)
     Set cmdShape = Button("cmdShape", "Select Existing Shape", 195, 67, 185)
     Set heading = Label("lblGCS", TerrainDetectedGCS(), 18, 100, 365, 38)
-    Set txtCRS = Box("txtCRS", "Source EPSG / WKT", 18, 141, 240)
-    txtCRS.ControlTipText = "Exact horizontal projected CRS for model grid coordinates, including datum realization and foot definition."
+    Set txtCRS = Box("txtCRS", "Source EPSG / WKT", 18, 141, 240, TerrainSuggestedCRS())
+    txtCRS.ControlTipText = "Suggested from the assigned GCS's EPSG source reference when available. Verify the complete CRS, units and grid mapping; local modifiers are unsupported."
     Set heading = Label("lblMaster", "Model master unit", 18, 173, 120)
     Set cboMaster = Choices("cboMaster", 140, 170, 240, "m|ft|us-ft")
     master = ActiveModelReference.MasterUnit: unitName = TerrainMasterUnitName(master)
@@ -94,10 +96,12 @@ Private Sub UserForm_Initialize()
     Set cboSourceZ = Choices("cboSourceZ", 532, 97, 240, "m|ft|us-ft")
     Set txtVertical = Box("txtVertical", "Source vertical CRS", 410, 125, 240)
     txtVertical.ControlTipText = "For example EPSG:5703 ONLY when NAVD88 is verified in selected source metadata. No datum shift is performed."
-    Set txtEvidence = Box("txtEvidence", "Evidence / metadata", 410, 153, 240)
+    Set txtEvidence = Box("txtEvidence", "Metadata citation", 410, 153, 240)
+    txtEvidence.ControlTipText = "Filled from explicit selected-product declarations when they all agree; otherwise enter verified source metadata citations."
     Set heading = Label("lblOutputZ", "Output elevation unit", 410, 184, 120)
     Set cboOutput = Choices("cboOutput", 532, 181, 240, "m|ft|us-ft", 0)
     Set txtResolution = Box("txtResolution", "Cell size (CRS units)", 410, 209, 240)
+    txtResolution.ControlTipText = "After Search, 1-metre DEMs suggest one metre in the confirmed horizontal CRS units. Editable; other datasets require a choice."
     Set chkOverlap = Check("chkOverlap", "Accept overlaps: last selected list row wins", 410, 237, 365)
     Set chkGaps = Check("chkGaps", "Allow/report NoData gaps inside boundary", 410, 263, 365)
     Set heading = Label("lblFixed", "Compatible tiles are mosaicked and reprojected to source DGN CRS. Originals are preserved. Not survey-grade. Fence and automatic ORD attachment are not enabled.", 18, 303, 754, 28)
@@ -212,6 +216,7 @@ Private Sub SetBusy(ByVal busy As Boolean)
         If TypeName(control) <> "Label" Then control.Enabled = Not busy
     Next control
     cmdCancel.Enabled = True
+    If Not busy Then cboSourceZ.Enabled = Not mDetectedVertical
 End Sub
 
 Private Sub RunWorker(ByVal action As String)
@@ -261,14 +266,18 @@ Failed:
 End Sub
 
 Private Sub LoadProducts()
-    Dim contents As String, i As Long, fields As Variant, size As String
+    Dim contents As String, i As Long, fields As Variant, size As String, suggested As String
+    suggested = Trim$(TerrainReadUI(mSearchFolder & "\cell-size.txt"))
+    If Len(suggested) > 0 Then suggested = CStr(Val(suggested))
+    If Len(Trim$(txtResolution.Text)) = 0 Or txtResolution.Text = mDefaultResolution Then txtResolution.Value = suggested
+    mDefaultResolution = suggested
     lstProducts.Clear
     contents = TerrainReadUI(mSearchFolder & "\products.tsv")
     If Len(contents) = 0 Then Exit Sub
     mRows = Split(contents, vbCrLf)
     For i = 0 To UBound(mRows)
         fields = Split(mRows(i), vbTab)
-        TerrainRequire UBound(fields) = 8, "Invalid products.tsv row."
+        TerrainRequire UBound(fields) = 11, "Invalid products.tsv row. Update the worker and MVBA together."
         size = "unknown"
         If IsNumeric(fields(2)) Then size = Format$(CDbl(fields(2)) / 1048576#, "0.0")
         lstProducts.AddItem fields(1)
@@ -290,6 +299,40 @@ Private Sub RefreshTotals()
     lblTotals.caption = CStr(count) & " / " & CStr(lstProducts.ListCount) & " selected; known estimate " & Format$(total / 1073741824#, "0.000") & " GiB; " & CStr(unknown) & " unknown sizes."
 End Sub
 
+Private Sub RefreshVerticalMetadata()
+    Dim i As Long, count As Long, fields As Variant, key As String
+    Dim unit As String, crs As String, evidence As String, available As Boolean
+    available = True
+    For i = 0 To lstProducts.ListCount - 1
+        If lstProducts.Selected(i) Then
+            fields = Split(mRows(i), vbTab)
+            key = key & CStr(Len(fields(0))) & ":" & fields(0)
+            count = count + 1
+            If count = 1 Then unit = fields(9): crs = fields(10)
+            If Len(fields(9)) = 0 Or Len(fields(10)) = 0 Or Len(fields(11)) = 0 Then available = False
+            If fields(9) <> unit Or fields(10) <> crs Then available = False
+            If Len(evidence) > 0 Then evidence = evidence & " | "
+            evidence = evidence & fields(11)
+        End If
+    Next i
+    If key = mVerticalSelection Then Exit Sub
+    mVerticalSelection = key
+    mDetectedVertical = available And count > 0
+    cboSourceZ.ListIndex = -1: txtVertical.Value = "": txtEvidence.Value = ""
+    If mDetectedVertical Then
+        cboSourceZ.Value = unit: txtVertical.Value = crs: txtEvidence.Value = evidence
+    End If
+    cboSourceZ.Enabled = Not mBusy And Not mDetectedVertical
+    txtVertical.Locked = mDetectedVertical: txtEvidence.Locked = mDetectedVertical
+    If Not lblStatus Is Nothing And count > 0 Then
+        If mDetectedVertical Then
+            lblStatus.Caption = "Source vertical units/datum read from selected product metadata; citations saved automatically."
+        Else
+            lblStatus.Caption = "Selected metadata is missing or disagrees. Verify all selected sources before entering vertical units/datum/evidence."
+        End If
+    End If
+End Sub
+
 Private Sub lstProducts_Change()
     Dim fields As Variant
     If lstProducts.ListIndex >= 0 Then
@@ -297,6 +340,7 @@ Private Sub lstProducts_Change()
         txtDetails.value = "Coverage: " & fields(5) & vbCrLf & "Metadata: " & fields(7) & vbCrLf & fields(8)
     End If
     RefreshTotals
+    RefreshVerticalMetadata
 End Sub
 Private Sub cmdSearch_Click()
     RunWorker "search"
