@@ -135,6 +135,16 @@ uses actual model master units, including non-foot units. The user reports the
 generator and dynamic picking working in ORD; measured acceptance tests remain
 pending. It changes no ProjectWise or VBA autoload configuration.
 
+### USGS Terrain Downloader (source-only)
+
+[USGS Terrain Downloader](USGSTerrainDownloader/README.md) adds an independent
+ORD 2026 VBA dialog for temporary rectangle/simple-shape boundaries, official USGS
+DEM/LiDAR searches and a Python GDAL/PROJ terrain-raster workflow. CRS/master units
+and source vertical datum/units require explicit verification. Python synthetic
+DEM tests pass; new VBA compilation, picking, GCS detection and manual ORD import
+remain unverified. No compiled `.mvba` is supplied. This tool has its own explicit
+unit contract; the legacy feet assumptions below do not apply to it.
+
 ### Text utilities
 
 | Sub                          | File                       | What it does                                                                 |

@@ -1,0 +1,7 @@
+{
+  "PATH_prepend": "C:\\OSGeo4W\\bin",
+  "PYTHONHOME": "C:\\OSGeo4W\\apps\\Python312",
+  "PYTHONPATH": "C:\\OSGeo4W\\apps\\Python312\\Lib\\site-packages",
+  "GDAL_DATA": "C:\\OSGeo4W\\share\\gdal",
+  "PROJ_DATA": "C:\\OSGeo4W\\share\\proj"
+}
