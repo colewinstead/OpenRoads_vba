@@ -66,6 +66,8 @@ End Function
 
 Private Sub UserForm_Initialize()
     Dim heading As MSForms.Label, folder As String, fs As Object
+    Dim sourceRoot As String, pythonExe As String, environmentFile As String, master As MeasurementUnit, unitName As String
+    TerrainRuntimeDefaults sourceRoot, pythonExe, environmentFile
     Me.caption = "USGS Terrain Downloader"
     Me.Width = 806: Me.Height = 690: Me.ScrollHeight = 781: Me.ScrollBars = fmScrollBarsVertical
     Me.StartUpPosition = 1: Me.Font.Name = "Segoe UI": Me.Font.Size = 9
@@ -80,6 +82,8 @@ Private Sub UserForm_Initialize()
     txtCRS.ControlTipText = "Exact horizontal projected CRS for model grid coordinates, including datum realization and foot definition."
     Set heading = Label("lblMaster", "Model master unit", 18, 173, 120)
     Set cboMaster = Choices("cboMaster", 140, 170, 240, "m|ft|us-ft")
+    master = ActiveModelReference.MasterUnit: unitName = TerrainMasterUnitName(master)
+    If Len(unitName) > 0 Then cboMaster.Value = unitName
     Set chkConfirmed = Check("chkConfirmed", "I verified CRS, master units and grid XY; no local offsets, rotation, ground scale or GCS modifiers.", 18, 198, 365)
     chkConfirmed.Height = 38
     Set lblExtent = Label("lblExtent", TerrainModelDescription() & vbCrLf & "Select boundary; Search calculates WGS84 extent.", 18, 244, 365, 52)
@@ -115,10 +119,10 @@ Private Sub UserForm_Initialize()
     End With
     Set lblTotals = Label("lblTotals", "No products selected.", 18, 559, 450)
     Set chkUnknown = Check("chkUnknown", "Accept unknown sizes within hard cap", 480, 555, 292)
-    Set txtRoot = Box("txtRoot", "Source code folder", 18, 585, 632, GetSetting("USGSTerrainDownloader", "Runtime", "SourceRoot", ""))
-    txtRoot.ControlTipText = "Full path to USGSTerrainDownloader folder containing python\launch_worker.ps1."
-    Set txtPython = Box("txtPython", "Python executable", 18, 613, 632, GetSetting("USGSTerrainDownloader", "Runtime", "Python", ""))
-    Set txtEnv = Box("txtEnv", "GIS environment JSON", 18, 641, 632, GetSetting("USGSTerrainDownloader", "Runtime", "EnvironmentFile", ""))
+    Set txtRoot = Box("txtRoot", "Source code folder", 18, 585, 632, sourceRoot)
+    txtRoot.ControlTipText = "Full path to USGSTerrainDownloader folder containing python\launch_worker.exe and main.py."
+    Set txtPython = Box("txtPython", "Python executable", 18, 613, 632, pythonExe)
+    Set txtEnv = Box("txtEnv", "GIS environment JSON", 18, 641, 632, environmentFile)
     txtEnv.ControlTipText = "Optional child environment JSON. See python\osgeo4w-environment.example.json."
     folder = TerrainDefaultDestination()
     Set txtOutput = Box("txtOutput", "Destination folder", 18, 669, 540, folder)
@@ -231,7 +235,7 @@ Private Sub RunWorker(ByVal action As String)
     Loop
     text = TerrainReadUI(mJob & "\status.txt")
     If Len(text) > 0 Then lblStatus.caption = Replace(text, vbCrLf, ": ")
-    TerrainRequire worker.ExitCode = 0, "Worker failed/cancelled. " & text & vbCrLf & "See " & mJob & "\error.log. If Python did not start, verify environment paths and PowerShell policy."
+    TerrainRequire worker.ExitCode = 0, "Worker failed/cancelled. " & text & vbCrLf & "See " & mJob & "\error.log. If Python did not start, verify runtime paths and launcher permissions."
     If action = "search" Then
         mSearchFolder = mJob
         LoadProducts
@@ -275,6 +279,8 @@ End Sub
 
 Private Sub RefreshTotals()
     Dim i As Long, count As Long, total As Double, unknown As Long, fields As Variant
+    ' ListBox Change can fire before Initialize creates the totals label.
+    If lblTotals Is Nothing Then Exit Sub
     For i = 0 To lstProducts.ListCount - 1
         If lstProducts.Selected(i) Then
             count = count + 1: fields = Split(mRows(i), vbTab)

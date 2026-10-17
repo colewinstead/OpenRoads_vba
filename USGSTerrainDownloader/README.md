@@ -1,16 +1,33 @@
 # USGS Terrain Downloader
 
-Source-only OpenRoads Designer 2026 VBA application with a separate Python GIS
+OpenRoads Designer 2026 VBA application with source and a separate Python GIS
 worker. Draw a temporary model-XY rectangle or locate an existing simple closed
 shape, search USGS, choose products, and produce an audited GeoTIFF. Existing VBA
 tools are independent and unchanged.
 
-**Status:** the Python DEM workflow passes 32 offline tests and a bounded
-[real USGS two-tile download/processing pilot](LIVE_TEST_RESULTS.md). VBA compilation,
-graphical picking, GCS name detection and terrain import have **not** been run in
-ORD. No compiled `.mvba` is supplied. Use the [acceptance plan](TEST_PLAN.md)
+**Status:** the Python DEM workflow passes 32 offline tests on both Mac GIS and
+Windows OSGeo4W runtimes, plus a bounded
+[real USGS two-tile download/processing pilot](LIVE_TEST_RESULTS.md). The VBA project
+has now been assembled, compiled and saved in ORD 26.00.00.154. The included
+`USGSTerrainDownloader.mvba` is a **test build**. A native 2D self-check passed
+form initialization, explicit-confirmation defaults, GCS name display, in-memory
+shape vertices, programmatic boundary acceptance and unchanged DGN IDs/settings.
+The Windows suite now passes **37 tests**, including five standalone-launcher
+tests. An actual ORD bridge test started the EXE and Python and read Python's
+expected invalid-schema response. A live search through the ORD dialog then
+completed and displayed **2 one-metre DEM candidates** for the user's test shape.
+The user confirmed normal launch, rectangle
+preview/capture/cancellation and existing-shape acceptance. Numeric coordinate
+agreement, 3D behavior and terrain import have separate acceptance gates.
+Use the [acceptance plan](TEST_PLAN.md)
 before production use. This is not survey-grade data or an automatically created
 native ORD Terrain Model.
+
+Installed ORD 26.00.00.154 API signatures have now been inspected. The application
+now uses the included standalone `python\launch_worker.exe`; it does not require
+PowerShell scripts. The earlier PowerShell launch failure remains recorded as
+history. Live download/processing/import acceptance remains outstanding. See the
+[Windows preflight evidence](TEST_PLAN.md#windows-ord-computer-preflight-2026-10-17).
 
 Continuing on another computer? Read [HANDOFF.md](HANDOFF.md) and the
 [saved conversation](codex-session-01a1485e-079a-78b3-8e11-c54721d64042.md).
@@ -55,6 +72,16 @@ A system-wide GIS installation may separately require your IT administrator.
 
 1. Copy this entire directory to, for example,
    `C:\CAD_Custom\VBA\USGSTerrainDownloader`. Keep its `python` subdirectory intact.
+   `python\launch_worker.exe` is included for Windows x64 with .NET Framework 4.8
+   (also required by ORD 2026). To rebuild it from `WorkerLauncher.cs`, run this
+   from the configured GIS shell, using your application path:
+
+   ```bat
+   python "C:\CAD_Custom\VBA\USGSTerrainDownloader\python\build_launcher.py"
+   ```
+
+   This uses the installed Windows Framework compiler; no .NET SDK or admin access
+   is required. Keep the EXE beside `main.py`.
 2. Open the installed **OSGeo4W/QGIS command shell**. Check the actual interpreter:
 
    ```bat
@@ -82,22 +109,34 @@ A system-wide GIS installation may separately require your IT administrator.
    python -m unittest discover -s "C:\CAD_Custom\VBA\USGSTerrainDownloader\tests" -v
    ```
 
-5. In the VBA dialog, set **Source code folder** to the application directory,
-   **Python executable** to the full path from `runtime-python.txt`, and
-   **GIS environment JSON** to the captured JSON file. Select `python.exe`, not a
+5. The dialog discovers **Source code folder** beside the single loaded terrain
+   project when its `python\launch_worker.exe` exists. **Python executable** and
+   **GIS environment JSON** fill from the files captured in
+   `%LOCALAPPDATA%\USGSTerrainDownloaderConfig`. Previously saved choices take
+   precedence; missing/ambiguous paths stay editable. If needed, enter the application
+   directory, the full Python path from `runtime-python.txt`, and the captured JSON.
+   Select `python.exe`, not a
    `.bat`/`.cmd` QGIS launcher or Windows Store alias. These three settings persist
    in this application's HKCU VBA settings. CRS/vertical declarations do not persist.
 
-PowerShell launches Python in a dedicated child environment. ORD's environment,
-ProjectWise settings and VBA autoload configuration are not modified. If execution
-policy blocks the script, use your organization's approved script-signing/unblocking
-procedure; this application does not bypass execution policy. TLS certificate
+Model master units fill only when ORD's numeric unit definition matches metres,
+international feet or US survey feet; labels alone are insufficient. The CRS/grid
+verification checkbox remains unchecked. Source vertical CRS/unit/evidence remain
+blank until verified against the selected data; the dataset name is not evidence.
+
+The standalone EXE launches Python in a dedicated child environment. ORD's
+environment, ProjectWise/workspace settings, VBA autoload configuration and
+PowerShell policy are not modified. The old `launch_worker.ps1` is retained for
+existing command-line workflows; the VBA application does not invoke it. TLS certificate
 verification stays enabled; configure `SSL_CERT_FILE` in the child environment for
 an approved CA bundle when needed. Never disable certificate verification.
 
 ## Build the VBA project in ORD 2026
 
-1. Open a **disposable design DGN**, then open **VBA Project Manager** and create a
+For the included test build, load `USGSTerrainDownloader.mvba` from this directory
+and use the key-ins below. The following steps rebuild it from source.
+
+1. Open a **disposable design DGN** (a normal 2D design model is supported), then open **VBA Project Manager** and create a
    new project. Save it as
    `C:\CAD_Custom\VBA\USGSTerrainDownloader.mvba`.
 2. In the VBA editor, **Tools > [project] Properties**, set the project name to
@@ -121,7 +160,8 @@ an approved CA bundle when needed. Never disable certificate verification.
    references or programmatic VBA-project access are needed.
 7. Use **Debug > Compile USGSTerrainDownloader**. Resolve any missing reference
    against your installed ORD 2026 VBA help/Object Browser; do not substitute
-   guessed APIs. Save the project. Compilation here is an outstanding test gate.
+   guessed APIs. Save the project. The included test build passed this step on
+   ORD 26.00.00.154; recompilation on another build is a separate check.
 8. Run these exact key-ins, adjusting only the load path:
 
    ```text
@@ -138,6 +178,12 @@ an approved CA bundle when needed. Never disable certificate verification.
    No autoload variable changes are necessary. Follow the repository's existing
    ribbon instructions if desired. Only an actual Bentley VBA environment can
    produce the saved `.mvba`.
+
+Boundary selection can start in a **2D model**. The current application does not
+create or activate a 3D model. Creating/reusing ORD's associated Civil 3D model
+and importing a native terrain remain an integration task, separate from drawing
+the boundary and producing the GeoTIFF. No ProjectWise or workspace configuration
+changes are required for explicit ribbon load/run.
 
 ## First run
 
@@ -227,7 +273,13 @@ python python\main.py C:\terrain-work\run-example\request.json
 
 A commented schema/example is documented in [REQUEST_FORMAT.md](REQUEST_FORMAT.md).
 Use the launcher rather than direct Python when child GIS environment settings
-are needed. LiDAR requests can additionally set `pdal_executable` to a full PDAL
+are needed:
+
+```bat
+python\launch_worker.exe "C:\terrain-work\run-example\request.json"
+```
+
+LiDAR requests can additionally set `pdal_executable` to a full PDAL
 CLI path for metadata/schema inspection; this is not a ground-point raster pipeline.
 
 [API evidence and architecture](API_NOTES.md) · [Repeatable tests and results](TEST_PLAN.md) · [Real download/processing evidence](LIVE_TEST_RESULTS.md)

@@ -7,17 +7,203 @@
 | Python offline suite | Mac QGIS 4.2.2 bundled Python 3.12, GDAL 3.13.3, pyproj 3.7.2 | 32 tests passed; no skips |
 | Python offline suite | Mac system Python 3.14 + pyproj, no GDAL | 15 passed, 16 skipped; skips are not passes |
 | Python offline suite | Windows test PC, Python 3.14 + pyproj, no GDAL | 15 passed, 16 skipped |
+| Python offline suite | ORD Windows computer, OSGeo4W Python 3.12, GDAL 3.11.3, pyproj 3.7.0, numpy 1.26.4 | **32 passed, no skips** on 2026-10-17 |
+| Updated suite including standalone launcher | Same Windows GIS runtime | **37 passed, no skips**; five new real-EXE tests cover Unicode/metacharacter paths, invalid inputs, environment isolation, large logs, exit codes and cancellation |
+| Native standalone bridge | ORD 26.00.00.154 / Default / 2D | **Passed** actual VBA -> EXE -> configured Python -> expected invalid-schema exit/status; no network or DGN writes |
+| Live ORD dialog metadata search | Same model; standalone EXE + Windows GIS runtime | **Passed**; user saw products and actual job read-back confirmed search_complete, 2 dem1m candidates, 8-vertex boundary, CRS 6576/us-ft, explicit grid flags, no vertical declaration or data transfer |
+| Installed Bentley API inspection | ORD 26.00.00.154; delivered CHM and interop DLL 26.00.00.974 | Signatures inspected; not compilation or graphical execution |
 | Windows launcher | Windows PowerShell, real Python child, temporary Unicode/space/ampersand paths | Passed missing interpreter, worker error, status/log encoding |
 | PowerShell syntax | PowerShell parser on Mac | Passed |
 | Live official API smoke | Python client with verified TLS, metadata only | 1-m: 2, 1/3-arc-second: 4, LiDAR: 10 candidates for the test box |
 | Real USGS terrain-file transfer/processing | Mac QGIS GIS worker, two adjacent 1-m tiles, 50 MiB cap | Passed search, actual transfer/hash checks, mosaic, clip, grid reprojection, metre/survey-foot outputs and zero-gap verification; [evidence](LIVE_TEST_RESULTS.md) |
-| VBA compilation, picking, form, GCS, DGN interaction | ORD not available | **Not run** |
+| VBA assembly / Debug Compile / targeted Save | ORD 26.00.00.154, user's disposable test.dgn | **Passed**; real 199,680-byte local MVBA saved; execution gates remain separate |
+| Native 2D self-check | ORD 26.00.00.154 / Default / GCS name TN83/2011F | Passed after initialization fix; form/GCS/default guards/shape/boundary and unchanged IDs/settings; not graphical picking/control validation |
+| Normal dialog launch | Same host; user-entered documented key-ins | User confirmed dialog stays open; duplicate loaded test copies noted below |
+| Graphical rectangle capture / preview / reset | Same 2D test model; user clicks and screenshot | User confirmed capture, visible preview, completion, reset/dialog return, outline cleanup and prior-boundary preservation; earlier invisible-preview cause unproven |
+| Graphical existing-shape selection | Same 2D test model; user clicks | User confirmed acceptance returns to dialog with Boundary captured and vertex count; numeric/control/rejection cases remain untested |
+| Runtime/master-unit autofill | ORD 26.00.00.154, single delivered project | **Passed** actual compile and manual-F5 native regression; exact us-ft and three runtime paths, manual confirmations retained, IDs/settings unchanged |
+| Additional GCS metadata / grid confirmation | Same 2D test model | Actual COM Source=EPSG:6576, datum NAD83/2011, PaperScale=1; local EPSG catalog matches; user verified unmodified State Plane grid; no numeric control comparison |
+| Managed full-GCS diagnostic | Installed .NET Framework 4.8 / ORD API DLLs | C# compile passed; two explicit full-path MDL loads failed, no report; WKT/JSON execution unproven |
 | Raster attachment / native terrain creation | Not implemented | Deferred |
 | PDAL point-cloud inspection | PDAL not run | Unverified |
 
-Counts above are a dated snapshot, not a promise of current coverage. Windows
-and system-Python suite counts are the earlier 31-test checkpoint; the latest
-32-test suite ran with the Mac GIS runtime. The extra regression is GIS-dependent. The test
+## Windows ORD computer preflight (2026-10-17)
+
+Current build after the standalone-launcher change: MVBA **395,264 bytes**, SHA-256
+`133da49831ff026344f6d2efd9256601556f3e7cd6cfa205109237707d2ccd37`;
+companion EXE **8,192 bytes**, SHA-256
+`d4ed77b988692b40b6ba1405abecdbe1c03270ffd3414b9dec0c1749fb015468`.
+Actual compile/targeted save and the native form/launcher checks passed; five
+production components remain. Evidence: `.runs/ord-20261017/standalone-build.json`.
+The older PowerShell restriction and build snapshots below are historical results;
+current VBA starts the EXE directly. Live dialog Search also passed; actual job
+read-back confirmed two candidates and empty stdout/stderr logs. Evidence:
+`.runs/ord-20261017/live-standalone-search.json`. Live raster processing/import
+remains untested in ORD.
+
+- ORD reports **Version 26.00.00.154** through actual COM activation. Windows
+  build is **26100.9457**, display version 24H2. No production DGN was opened.
+- `CreateDesignFile` opened the disposable
+  `.runs/ord-20261017/acceptance.dgn` from the delivered `3D Imperial Design.dgn`
+  seed. COM reported model `3D Imperial Design` and **3048 UOR/master unit**.
+  This resolution alone does not establish a foot definition or grid mapping.
+  `GetGCS(True)` returned Nothing; no CRS was guessed or assigned.
+- CHM and interop inspection confirmed the signatures detailed in
+  [API_NOTES.md](API_NOTES.md). This did not exercise the application's form,
+  `CallByName` probe, graphical pickers or model-context guards.
+- Windows GIS offline suite: **32 tests passed, no skips**. Command:
+  `cmd.exe /d /c "call C:\Users\cwinstead\AppData\Local\Programs\OSGeo4W\bin\o4w_env.bat && python -m unittest discover -s USGSTerrainDownloader/tests -v"`.
+  The first sandboxed run failed with temporary-directory access errors through
+  OSGeo4W's short user path; the approved run outside that sandbox passed.
+  GDAL emitted `transformer options does not support option STRIP_VERT_CS` warnings;
+  the horizontal-only Z and vertical-unit read-back tests nevertheless passed.
+  This does not replace the Windows real-source/control tests.
+- Environment capture and `compileall` succeeded. The machine-specific Python
+  path and child environment JSON are in the ignored `.runs/ord-20261017/`
+  folder. They are not portable configuration or committed defaults.
+- **Launcher gate blocked:** the actual `powershell.exe -NoProfile
+  -NonInteractive -File USGSTerrainDownloader/tests/test_windows_bridge.ps1
+  -Python <OSGeo4W python.exe>` invocation failed before test execution with
+  `running scripts is disabled on this system` / `UnauthorizedAccess`.
+  All reported execution-policy scopes were Undefined. No policy/settings were
+  changed and no bypass flag was used. Resolve this through the organization's
+  approved policy before claiming a form-to-worker pass.
+- The desktop automation helper failed with `Computer Use native pipe is
+  unavailable ... (os error 2)` after retry and session reset. The user chose
+  API/COM checks only. Graphical acceptance remains pending.
+- In the automation-only ORD session, `VBE.VBProjects.Add(1)` failed with
+  `Invalid index` (`0x8002000B`), documented `VBA CREATE` exposed no project,
+  and opening a copied project through `VBProjects.Open` failed with
+  `0x800A01B8`. The copied file was renamed `container-template.mvba` and is
+  **only an unchanged copy of PatternLineGenerator**, not this application's build.
+  Normal-host assembly is a separate pending check. No compiled terrain MVBA is
+  supplied or claimed from these attempts. The normal host loaded the existing
+  `SquareYard.mvba` from its current configuration; that project was not edited.
+- Normal-host `OpenDesignFile` did not return an active DGN; the user reported
+  ORD crashed/reopened. The waiting COM call was cancelled and further host
+  commands stopped. The latest Bentley `ExceptionHistory-1/Exception.log`
+  records **0xc0000005 at 15:30:02**, with `acceptance.dgn` active and no active
+  model name. The terrain project had not been assembled or run. This records
+  an actual host failure but does not identify its cause.
+  Application events at 15:30:06/15:30:08 record a separate
+  Bentley `ArchiveDgnFiles.exe` failure (`System.ArgumentException` while creating
+  a ZIP entry, exception code `0xe0434352`). That event does **not** establish the
+  cause of the reported ORD crash. Resume only after the user opens a disposable
+  DGN normally in the intended existing workspace/workset; verify its full path
+  before assembly. Do not repeat automation-host restart attempts or change
+  workspace/autoload configuration to force this gate.
+- The user subsequently opened `test.dgn` normally in the intended managed
+  workspace. Read-only COM reported ORD 26.00.00.154, model `Default`, model type
+  0 (normal design), **10000 UOR/master**, and raw `GetGCS(True).Name` =
+  **TN83/2011F**. This is not an EPSG/unit/modifier/control validation. The four
+  existing projects (ViewSet, SnappableToggle, Survey, WorkSpaceVersion) were
+  left untouched. In this host `VBA CREATE` again created no project and Message
+  Center reported `Unknown key-in or command`; `VBProjects.Open` again returned
+  `0x800A01B8`. The user was asked to create only a blank standalone project via
+  the editor's New Project command before further COM import/compile attempts.
+  No ProjectWise, workspace, VBA search-path or autoload settings were changed.
+- The user created the blank terrain project using the editor. COM then imported
+  the three standard modules (types 1), picker class (type 2) and blank UserForm
+  (type 3), inserting the supplied form code. VBA, MicroStationDGN, stdole and
+  MSForms references all reported `IsBroken=False`.
+- **Actual compile/save passed:** with terrain as the active project, the editor's
+  `Compi&le USGSTerrainDownloader` action (CommandBar ID 578) returned, changed
+  from enabled to disabled, and left project mode 2 (design). The targeted File
+  Save action named the terrain file and returned `Saved=True`; the file was
+  **199,680 bytes**. `VBProject.SaveAs` is unsupported for this host project;
+  SAVEALL was not used. Hashing while ORD holds the project open failed with a
+  sharing violation. Local evidence: `.runs/ord-20261017/compile-result.json`.
+- A temporary `modTerrainORDSmoke` module was added after that saved snapshot
+  for native form/GCS/in-memory-shape/boundary/element-ID/settings checks. It
+  compiled, but the automated Run command produced no report. Manual F5 actually
+  started it and wrote `status=running`, then raised runtime **91** during form
+  initialization. Debug highlighted `lblTotals.caption` in `RefreshTotals`:
+  ListBox Change fired before the totals label existed. A two-line initialization
+  guard was added to the shared routine, all callers were checked, and the
+  corrected source compiled. The same native regression was selected for another
+  manual F5; completion is **not passed until its report confirms success**.
+  Initial-failure evidence: `.runs/ord-20261017/native-smoke-before-fix.json`.
+  Remove this diagnostic module, recompile and save the terrain project before
+  treating the final MVBA as ready for load/run testing or distribution.
+- **Native check subsequently passed.** The model is 2D (`Is3D=False`); the first
+  diagnostic fixture incorrectly used nonzero Z. It was corrected to use Z=0
+  in 2D and Z=7 in 3D, keeping exact XYZ comparisons. The final report confirms
+  the actual form/GCS/default-confirmation/shape/boundary checks and identical
+  before/after element IDs, active settings and four VBA configuration values.
+  A 3D file is **not a prerequisite** for selection. No 3D test was run.
+  Local report: `.runs/ord-20261017/native-smoke.json` (`status=passed`).
+- The temporary module was removed. The source fix remains in the UserForm;
+  only the three production modules, picker class and form remain in the saved
+  project. The final compiled state was up to date (Compile disabled) and targeted
+  Save returned Saved=True. The included `USGSTerrainDownloader.mvba` is a
+  **429,568-byte ORD-saved test build**, with SHA-256
+  `283f2449d0351f934e8132070604aec5c3e0f479aba56fffbd97928ab79bafc2`.
+  The copy matched the saved source hash; it was not fabricated or renamed from
+  another application's project. Evidence: `.runs/ord-20261017/final-build.json`.
+- The user confirmed the normal dialog stays open after the documented key-ins.
+  Read-only COM found both the `.runs` project and delivered project loaded under
+  the same name; both have five components. Unload the `.runs` row in Project
+  Manager before repeating a clean single-project load/run gate. Leave the four
+  pre-existing projects and all configuration unchanged.
+- The user unloaded the older `.runs` copy; COM verified only the delivered terrain
+  copy plus the four untouched existing projects remain. The autofill update then
+  passed actual Debug Compile and manual-F5 `modTerrainORDTests.RunTerrainORDSmoke`.
+  Report `.runs/ord-20261017/native-autofill.json` confirms exact model `us-ft`,
+  detected source folder/Python/environment file, unit classification regressions,
+  unconfirmed CRS/grid and vertical declarations, shape/boundary checks and unchanged
+  IDs/settings. Only this application's local runtime files were captured into
+  `%LOCALAPPDATA%\USGSTerrainDownloaderConfig`; no ORD configuration changed.
+  The temporary test module was removed, compile was up to date, and targeted Save
+  returned Saved=True. Updated artifact: **420,352 bytes**, SHA-256
+  `3b425457febd2a55fa6f86ddcc1cd37295903f4419178d4230f2ccade9feafe6`.
+  Evidence: `.runs/ord-20261017/autofill-build.json`. Earlier hashes/sizes above
+  describe historical snapshots. The user subsequently confirmed the moving
+  preview is visible; no preview-code change was made and the earlier cause is
+  unproven. The user then confirmed second-click completion, right-click cancellation
+  after the next first corner, dialog return, temporary-outline cleanup and retention
+  of the prior boundary. Existing-shape acceptance also returned to the dialog with
+  Boundary captured and a vertex count. These reports are recorded in
+  `.runs/ord-20261017/graphical-rectangle.json`; they do not establish numeric
+  coordinate agreement, rotated/3D behavior or unsupported-shape rejection.
+- A later typed C# COM `ModelReference.Scan(null)` succeeded and showed all prior
+  element IDs plus only ID 3375. Read-only inspection found an eight-vertex Shape
+  on Default; the user confirmed creating a new test shape. The delta is accounted
+  for, rather than claiming identical IDs across user drawing. Nothing was deleted.
+  Evidence: `.runs/ord-20261017/after-graphical-ids.json` and `new-element-3375.txt`.
+
+### Read-only managed GCS diagnostic (compile only)
+
+`tests/OrdGcsProbe.cs` compiles with the installed Framework64 `csc.exe`, target
+library/x64, `System.Web.Extensions.dll`, and these ORD 2026 references:
+root `ustation.dll`, `Bentley.DgnPlatformNET.dll`, `Bentley.GeometryNET.dll`,
+`Bentley.GeometryNET.Structs.dll`, `Bentley.GeoCoord2.dll`, `Bentley.DgnGeoCoord2.dll`;
+`Assemblies\Bentley.MicroStation.Interfaces.1.0.dll`;
+`Assemblies\ECFramework\Bentley.General.1.0.dll`.
+The output stays in ignored `.runs/ord-20261017/OrdGcsProbe.dll`; it is not part
+of the application. Two explicit full-path `MDL LOAD` attempts, including an
+explicit USGSGCSPROBE task ID, returned `MDL Loader: Could not load application`.
+No `%TEMP%\USGSTerrainDownloader-GcsProbe.json` exists. Compilation passed;
+managed WKT/JSON API execution did not. No search path, autoload, installation,
+ProjectWise/workspace or execution-policy setting was changed. See
+`.runs/ord-20261017/gcs-probe-load.json`. The working MVBA remains independent.
+
+### Repeat the native regression
+
+In a fresh disposable session with no active downloader job, import
+`tests/modTerrainORDTests.bas` into a test copy of the terrain project and run
+`modTerrainORDTests.RunTerrainORDSmoke` with F5. It briefly opens/closes the form
+and writes `%TEMP%\USGSTerrainDownloader-ORDTests.json`. It asserts the native
+startup/GCS/default-confirmation/shape/boundary behavior and unchanged model
+element IDs/settings. Remove the test module before saving a deliverable build.
+The executed `.runs` version used an absolute report path. The checked-in test
+uses TEMP and adds exact master-unit classification and runtime/form defaults;
+that extended test also passed in the single delivered project. The final application
+contains no test module.
+
+Counts above are a dated snapshot, not a promise of current coverage. The older
+no-GDAL Windows and system-Python counts are the earlier 31-test checkpoint;
+the latest 32-test suite passed with both the Mac GIS and Windows OSGeo4W runtimes.
+The extra regression is GIS-dependent. The test
 box is WGS84 `[-88.82,33.42,-88.80,33.44]`. The metadata smoke test fetched JSON only. The separate live DEM pilot downloaded
 35,755,526 terrain bytes (about 34.10 MiB) under its explicit 50 MiB cap.
 Mac system Python needed the trusted system CA bundle (`SSL_CERT_FILE=/etc/ssl/cert.pem`);
@@ -58,16 +244,30 @@ suite with skips as DEM-processing evidence. Use the same GIS Python/DLL/data
 combination intended for ORD. Unittest is in the standard library; pytest is not
 required.
 
-On the Windows PC, in PowerShell:
+On Windows, from the configured GIS shell, build and test the standalone launcher:
 
-```powershell
-powershell -NoProfile -File .\USGSTerrainDownloader\tests\test_windows_bridge.ps1 -Python 'C:\full\path\python.exe'
+```bat
+python USGSTerrainDownloader\python\build_launcher.py
+python -m unittest discover -s USGSTerrainDownloader\tests -p test_windows_launcher.py -v
 ```
 
-The bridge test uses its own new temporary directory, deliberately invalid
-requests, and the actual launcher/worker. It tests errors without downloads or
-DGN access. A restrictive execution policy remains an environment failure to
-resolve through approved IT policy, not a reason to bypass it.
+The five real-EXE tests use disposable Unicode/space/apostrophe/ampersand paths,
+the actual worker's invalid-schema path and isolated fixture workers. They verify
+child-only environment settings/allowlisting, forced PROJ_NETWORK=OFF, UTF-8
+stdout/stderr beyond pipe-buffer size, UTF-16 status, missing interpreter, exact
+exit propagation and cooperative cancel.flag/status preservation. They perform
+no downloads or DGN access. The legacy PS1 bridge test remains for the old optional
+PowerShell launcher; it is not the application's current launch path.
+
+For the actual native bridge gate, import `modTerrainORDTests.bas`, compile, and
+run `modTerrainORDTests.RunTerrainLauncherSmoke`. It first repeats the native form
+check, then calls production `TerrainStartWorker` with a deliberately invalid
+schema. Require both TEMP reports to pass: `USGSTerrainDownloader-ORDTests.json`
+and `USGSTerrainDownloader-LauncherTests.json`. Expected Python exit 2 and
+"Unsupported request schema" prove the process boundary, not a live search.
+This check passed via an explicit `VBA RUN` key-in sent through CadInputQueue;
+evidence is `native-standalone-form.json` and `native-standalone-launcher.json` in
+the ignored run folder. The temporary module was removed before the final save.
 
 ## Optional live metadata-only API check
 
@@ -80,9 +280,11 @@ box, prints a count and two metadata summaries, and **never downloads terrain**.
 Record dates and response failures. API outages/catalog changes should fail
 clearly; do not substitute fixture data and call that a live pass.
 
-## ORD 2026 acceptance gates — all pending
+## ORD 2026 acceptance gates
 
-Use a disposable DGN and separate test output folder. Record full ORD build,
+Use a disposable DGN and separate test output folder. Selection supports normal
+2D and 3D design models; keep the ordinary 2D workflow as an acceptance case.
+Record full ORD build,
 Windows build, Python/GDAL/PROJ versions and grid availability, actual model unit
 definition, UORs per master unit, GCS name/EPSG/realization/modifiers, global origin,
 known control coordinates and model element IDs/count. Source code review is not
@@ -218,11 +420,14 @@ classification/NoData/vertical test plan before promotion.
 
 | Gate | Full ORD build / model / units | Actual evidence | Result |
 | --- | --- | --- | --- |
-| Compile/load/form | Pending | Not run | Pending |
-| Rectangle/dynamics/reset | Pending | Not run | Pending |
-| Shape/concavity/context | Pending | Not run | Pending |
-| GCS name + known-point/master-unit/origin | Pending | Not run | Pending |
+| Compile/save | 26.00.00.154 / Default / 10000 UOR per master | Imported components/references, Debug Compile disabled after execution, targeted Save returned Saved=True | Passed; local test MVBA only |
+| Native form/GCS/shape/boundary regression | 26.00.00.154 / Default / 2D / 10000 UOR/master | Manual F5 report passed after startup fix; unchanged model IDs/settings/configuration | Passed for these programmatic checks |
+| Load/run/form | Same host | User confirmed normal dialog stays open; duplicate build copy subsequently unloaded; native single-copy autofill regression passed | Basic launch/defaults confirmed; layout/async gates pending |
+| Rectangle/dynamics/reset | Same 2D test model | User confirmed capture, visible preview, completion, reset/dialog return, cleanup and retained prior boundary | User-observed checks passed; numeric/rotated/3D cases pending |
+| Shape/concavity/context | Same 2D test model | User confirmed Select Existing Shape accepts and returns to dialog with captured boundary | Basic acceptance confirmed; exact geometry, concavity, rejection/context cases pending |
+| GCS name + known-point/master-unit/origin | Same 2D model | Actual COM name/Source, exact numeric master-unit classification, user-confirmed grid and live search passed | Independent numeric control/global-origin and full GCS export pending |
 | Form async/cancel/config | Pending | Not run | Pending |
+| Standalone bridge / live Search | 26.00.00.154 / Default / 2D / us-ft | Native bridge report passed; user saw 2 products; actual request/status/manifest verified search_complete | Passed for startup and live metadata search; active-job UI cancellation/processing separate |
 | Real source DEM/report verification | No ORD; Mac GIS runtime | Two-tile pilot and numeric/unit checks passed; no survey-control comparison | Python evidence passed; ORD/control validation pending |
 | Manual raster/terrain import/control | Pending | Not run | Pending |
 | LiDAR real source/PDAL | Pending | Not run | Pending |

@@ -29,6 +29,17 @@ Public Function TerrainModelDescription() As String
         " | UOR/master: " & TerrainNumber(ActiveModelReference.UORsPerMasterUnit)
 End Function
 
+Public Function TerrainMasterUnitName(unit As MeasurementUnit) As String
+    Dim metres As Double
+    If unit.Base <> msdMeasurementBaseMeter Then Exit Function
+    If unit.UnitsPerBaseNumerator <= 0 Or unit.UnitsPerBaseDenominator <= 0 Then Exit Function
+    metres = unit.UnitsPerBaseDenominator / unit.UnitsPerBaseNumerator
+    ' Labels such as a prime do not distinguish international and US survey feet.
+    If Abs(metres - 1#) < 0.000000000001 Then TerrainMasterUnitName = "m"
+    If Abs(metres - 0.3048) < 0.000000000001 Then TerrainMasterUnitName = "ft"
+    If Abs(metres - 1200# / 3937#) < 0.000000000001 Then TerrainMasterUnitName = "us-ft"
+End Function
+
 Public Function TerrainDetectedGCS() As String
     Dim model As Object, gcs As Object
     On Error GoTo Unavailable

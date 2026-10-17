@@ -11,6 +11,26 @@ TLS verification enabled and PROJ grid network access disabled.
 
 ## Inputs and evidence
 
+### Additional Windows ORD metadata-only gate
+
+Later on 2026-10-17, the saved ORD 26.00.00.154 VBA project called the new
+standalone `launch_worker.exe` from its actual dialog. The user selected an
+eight-vertex test shape in the 2D test DGN, entered `6576` (EPSG:6576), retained
+US survey feet and explicitly confirmed their unmodified grid mapping. Search
+displayed **2 one-metre DEM candidates**. Read-back of request.json, status.json
+and search.json confirmed `search_complete`, the two products, both coordinate
+confirmation flags true, no vertical declaration and empty stdout/stderr logs.
+No Download/Process was requested. This is an actual ORD-to-USGS metadata-search
+pass, not a Windows raster-processing or native-terrain-import pass.
+
+Machine-local evidence: `.runs/ord-20261017/live-standalone-search.json` and the
+user's test-DGN output folder. The complete Windows suite passed 37 offline tests,
+including five real-EXE launcher tests; native form and invalid-schema bridge
+checks passed before this search. No ProjectWise/workspace/autoload or PowerShell
+policy settings were changed. The original Mac download/processing pilot follows.
+
+### Original pilot inputs
+
 A deliberately specified **headless test grid**, not a detected DGN, was used:
 NAD83(2011) / Mississippi East (ftUS), EPSG:6507, master units `us-ft`, no local
 coordinate modifiers. A 400-by-400-US-survey-foot square was centered on grid

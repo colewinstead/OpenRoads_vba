@@ -44,6 +44,38 @@ Public Function TerrainReadUI(ByVal path As String) As String
     stream.Close
 End Function
 
+Public Sub TerrainRuntimeDefaults(ByRef sourceRoot As String, ByRef pythonExe As String, ByRef environmentFile As String)
+    Dim fs As Object, project As Object, candidate As String, matches As Long
+    Dim config As String, stream As Object
+    sourceRoot = GetSetting("USGSTerrainDownloader", "Runtime", "SourceRoot", "")
+    pythonExe = GetSetting("USGSTerrainDownloader", "Runtime", "Python", "")
+    environmentFile = GetSetting("USGSTerrainDownloader", "Runtime", "EnvironmentFile", "")
+    On Error GoTo Unavailable
+    Set fs = CreateObject("Scripting.FileSystemObject")
+    If Len(sourceRoot) = 0 Then
+        For Each project In Application.VBE.VBProjects
+            If project.Name = "USGSTerrainDownloader" Then
+                matches = matches + 1
+                candidate = fs.GetParentFolderName(project.FileName)
+            End If
+        Next project
+        If matches = 1 Then
+            If fs.FileExists(fs.BuildPath(candidate, "python\launch_worker.exe")) Then sourceRoot = candidate
+        End If
+    End If
+    config = Environ$("LOCALAPPDATA") & "\USGSTerrainDownloaderConfig"
+    If Len(environmentFile) = 0 And fs.FileExists(config & "\runtime-environment.json") Then environmentFile = config & "\runtime-environment.json"
+    If Len(pythonExe) = 0 And fs.FileExists(config & "\runtime-python.txt") Then
+        Set stream = CreateObject("ADODB.Stream")
+        stream.Type = 2: stream.Charset = "utf-8": stream.Open
+        stream.LoadFromFile config & "\runtime-python.txt"
+        candidate = Trim$(stream.ReadText): stream.Close
+        If fs.FileExists(candidate) And LCase$(fs.GetExtensionName(candidate)) = "exe" Then pythonExe = candidate
+    End If
+Unavailable:
+    ' Discovery is optional; unavailable paths remain editable, never guessed.
+End Sub
+
 Public Function TerrainNewJobFolder(ByVal destination As String) As String
     Dim fs As Object, path As String
     Set fs = CreateObject("Scripting.FileSystemObject")
@@ -60,14 +92,12 @@ Private Function CommandQuote(ByVal value As String) As String
 End Function
 
 Public Function TerrainStartWorker(ByVal sourceRoot As String, ByVal requestPath As String) As Object
-    Dim shell As Object, fs As Object, launcher As String, exe As String
+    Dim shell As Object, fs As Object, launcher As String
     Set fs = CreateObject("Scripting.FileSystemObject")
-    launcher = fs.BuildPath(sourceRoot, "python\launch_worker.ps1")
-    TerrainRequire fs.FileExists(launcher), "Source folder must contain python\launch_worker.ps1."
-    exe = Environ$("SystemRoot") & "\System32\WindowsPowerShell\v1.0\powershell.exe"
+    launcher = fs.BuildPath(sourceRoot, "python\launch_worker.exe")
+    TerrainRequire fs.FileExists(launcher), "Source folder must contain python\launch_worker.exe beside main.py."
     Set shell = CreateObject("WScript.Shell")
-    ' -File receives data arguments directly, no cmd.exe or interpolated PowerShell expressions.
-    Set TerrainStartWorker = shell.Exec(CommandQuote(exe) & " -NoProfile -NonInteractive -File " & CommandQuote(launcher) & " -Request " & CommandQuote(requestPath))
+    Set TerrainStartWorker = shell.Exec(CommandQuote(launcher) & " " & CommandQuote(requestPath))
 End Function
 
 Public Sub TerrainYield()

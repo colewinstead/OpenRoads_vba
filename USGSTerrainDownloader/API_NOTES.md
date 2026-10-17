@@ -12,26 +12,29 @@ The new application reuses the established command-event, temporary dynamics,
 UserForm/WithEvents, model-context validation and error-reporting patterns. It
 imports none of that application's modules and changes none of its files.
 
-The existing [API notes](../PerpendicularLineGenerator/API_NOTES.md) record
-inspection of ORD 2026's `MicroStationVBA.chm` and delivered interop DLL. Those
-artifacts were **not available for reinspection in this implementation session**.
-The reachable Windows test PC has Python but no ORD installation. Existing
-signature evidence plus Bentley's published documentation supports source authoring;
-it does not establish this new application's compilation or runtime compatibility.
+The ORD-computer continuation inspected the installed ORD **26.00.00.154**
+`MicroStationVBA.chm` and read-only reflection of
+`Assemblies\Bentley.Interop.MicroStationDGN.dll` (file version **26.00.00.974**).
+The installed CHM's SHA-256 is
+`d239934fad2871108228e87fa1050dd907e228910f404f86b215780c16cb6873`.
+An existing extracted copy in `%TEMP%\ORD2026-PLG-VBA-Help\vba.chm` has the same
+hash; its `html/` topics were read. Fresh `hh.exe -decompile` attempts produced
+no extracted files. This is actual installed-reference evidence, **not a VBA
+compile or graphical acceptance pass**. See [current Windows evidence](TEST_PLAN.md#windows-ord-computer-preflight-2026-10-17).
 
 | Bentley member | Exact use / evidence | Execution status here |
 | --- | --- | --- |
-| `CommandState.StartPrimitive Object`; `IPrimitiveCommandEvents` | Start, DataPoint, Dynamics, Reset, Cleanup, Keyin signatures match the existing verified picker | ORD pending |
-| `CommandState.StartLocate Object`; `ILocateCommandEvents` | Start, LocateFilter, Accept, LocateReset, LocateFailed, Dynamics, Cleanup match the existing picker | ORD pending |
+| `CommandState.StartPrimitive EventHandlers, [WantKeyins]`; `IPrimitiveCommandEvents` | Installed CHM `usmthstartprimitive.htm` / `usobjiprimitivecommandevents.htm` and interop confirm the optional Boolean and all six callback signatures | User confirmed 2D rectangle capture/completion/reset |
+| `CommandState.StartLocate EventHandlers`; `ILocateCommandEvents` | Installed CHM `usobjilocatecommandevents.htm` and interop confirm all seven callback signatures | User confirmed existing-shape acceptance; numeric/rejection cases pending |
 | `CommandState.CreateLocateCriteria(False)`, `SetLocateCriteria` | Same conservative graphical locate pattern | ORD pending |
-| `EnableAccuSnap`, `StartDynamics`, `StartDefaultCommand` | Native snapping, cursor callbacks, command cleanup | ORD pending |
-| `CreateLineElement1(Nothing, Point3d())`, `Element.Redraw(DrawMode)` | Closed line-string preview, never added to model | ORD pending |
-| `Element.AsVertexList.GetVertices` | Actual simple shape vertices, no range/corner substitution | ORD shape gate pending |
+| `EnableAccuSnap`, `StartDynamics`, `StartDefaultCommand` | Native snapping, cursor callbacks, command cleanup | User confirmed visible preview and reset/outline cleanup; snapping accuracy untested |
+| `CreateLineElement1(Nothing, Point3d())`, `Element.Redraw(DrawMode)` | Closed line-string preview, never added to model | Visible preview confirmed by user; no preview-code change; earlier absence unexplained |
+| `Element.AsVertexList.GetVertices` | Installed `usproasvertexlist.htm` / `usmthgetvertices.htm`: returns zero-based `Point3d()`; no range/corner substitution | Native 2D in-memory shape round-trip passed; graphical locate gate pending |
 | `Element.Type = msdElementTypeShape` | Reject complex/curved shapes, holes, references and cells | ORD pending |
-| `ModelReference.IsActive`, `IsAttachment`, `Type`, `Name`, `UORsPerMasterUnit`, `MasterUnit`; `MeasurementUnit.Label` | Active-model guards, unit label and model-resolution checks | ORD pending |
+| `ModelReference.IsActive`, `IsAttachment`, `Type`, `Name`, `UORsPerMasterUnit`, `MasterUnit`; `MeasurementUnit.Label` | Installed interop and CHM confirm model properties. `MeasurementUnit` is a value type with System/Base/unit-ratio/Label fields, matching the existing assignment | Signature verified; full unit/control gate pending |
 | `Point3dFromXYZ` | XY rectangle at first pick's Z | ORD pending |
 | `ActiveDesignFile.Path` | Candidate output directory only; no DGN writes | ORD pending |
-| `ModelReference.GetGCS(True)` returning `GeographicCoordinateSystem`; `Name` | **Best-effort late-bound probe** of Bentley COM GCS name; not a full definition/units/modifier extraction | Not verified in ORD 2026 here |
+| `ModelReference.GetGCS(Primary As Boolean)` returning `GeographicCoordinateSystem`; `Name` | Installed `usmthgetgcs.htm` says always pass True; interop confirms return type and read-only String Name | Raw COM plus actual application CallByName/form display passed for TN83/2011F; no EPSG/unit/modifier/control validation implied |
 
 Bentley's [Developing Code in VBA](https://bentleysystems.service-now.com/community?id=kb_article&sysparm_article=KB0110097)
 describes command interfaces, supplied Point3d/model context, temporary Redraw versus
@@ -40,11 +43,32 @@ persistent AddElement, and modeless event patterns. Bentley's
 explains F2/F1/Object Browser and the delivered CHM.
 The `GetGCS(true)` call/`Name` test appears in a
 [Bentley-hosted MicroStation 2026 COM example](https://bentleysystemstest.service-now.com/community?id=community_question&sys_id=2ffba6051b69c3d474968730604bcb8e).
-That example is corroborating evidence, **not** an independently inspected ORD
-2026 VBA signature. Accordingly the call is optional, late-bound, catches failure,
-and never supplies an assumed EPSG code. All source coordinates require explicit
-user confirmation. Check `GetGCS`/`GeographicCoordinateSystem` in the installed
-Object Browser before accepting this probe as supported on a particular build.
+The installed signature now corroborates that example on build 26.00.00.154.
+The call remains optional, late-bound, catches failure, and never supplies an
+assumed EPSG code. All source coordinates still require explicit user confirmation.
+Reflection shows descriptive GCS properties, coordinate conversions and PaperScale;
+it does not establish a complete EPSG/WKT/modifier extraction contract. The full
+coordinate safeguard remains necessary. Test an assigned GCS and the actual form
+before accepting the displayed name as an executed application-integration result.
+
+Further actual COM reads in the 2D test DGN returned Source=`EPSG:6576`,
+DatumName=`NAD83/2011`, Units=`Foot`, VerticalDatumName=`NAVD88` and PaperScale=1.
+The local pyproj EPSG catalog identifies 6576 as NAD83(2011) / Tennessee (ftUS).
+The user confirmed unmodified State Plane grid coordinates; a numeric known-point
+comparison remains untested. Source is descriptive metadata, not a verified full
+definition/export contract, and the DGN's vertical datum is not source-tile evidence.
+
+Read-only metadata also established `DgnGCS.FromModel(DgnModelRef, Boolean)` and
+`BaseGCS.GetWellKnownText(out String, WellKnownTextFlavor, Boolean)`,
+`ToJson(out String)`, `GetEPSGCode(Boolean)`, LocalTransformType/Parameters and
+PaperScale in the installed GeoCoord2/DgnGeoCoord2 assemblies. The standalone
+`tests/OrdGcsProbe.cs` compiled against the installed DLLs, including `ustation.dll`.
+Both explicit full-path MDL load attempts failed; no report was produced, so these
+managed export APIs have **not run**. Bentley's
+[2026 add-in example](https://bentleysystems.service-now.com/community?id=kb_article&sysparm_article=KB0012768)
+documents the platform references and standard add-in search paths. Those paths
+were not changed; the exact cause of this load failure is unproven. The diagnostic
+is not a dependency of the working VBA application.
 
 No `GetEPSG`, `ExportGCSWKT`, Civil COM terrain method, MDL pointer declaration,
 key-in recording or C expression is invented. GCS automatic mapping remains an
@@ -64,6 +88,14 @@ that these coordinates match the actual model's grid, including global-origin
 behavior. Local transforms, rotated/offset/ground-scaled GCS modifiers and dynamic
 epochs are unsupported; do not confirm them as grid XY.
 
+The master-unit suggestion reads `MeasurementUnit.Base` and the
+`UnitsPerBaseDenominator / UnitsPerBaseNumerator` metre factor. Only metre-base
+definitions matching 1, 0.3048 or 1200/3937 within 1e-12 metres are recognized;
+unknown/custom/unitless definitions stay unselected. This does not confirm grid
+mapping or establish the horizontal CRS. Native compile and the extended regression
+passed in ORD 26.00.00.154; the actual model definition resolved to `us-ft` while
+the CRS/grid checkbox and vertical declarations remained unconfirmed.
+
 The rectangle is model-XY aligned, not screen-aligned. Original polygon geometry
 is used for clipping. Simple horizontal straight-sided shape elements are supported;
 complex/curved boundaries, reference transforms and holes require a separately
@@ -74,6 +106,39 @@ rejected to avoid ambiguous projected footprints.
 are not the fence boundary. No reliably inspected boundary extraction covering view
 projection, clips and void fences was available. Fence selection is deliberately
 absent. No fence state is modified.
+
+## 2D selection and requested native 3D terrain workflow
+
+Boundary selection supports a normal **2D** design model; it does not require a
+3D file. The native self-check actually ran in 2D. Its initial test fixture used
+nonzero Z and was corrected for dimensionality; the application was not changed
+to relax its coordinate safeguards. Form initialization exposed a separate real
+bug: ListBox Change fired before lblTotals existed. RefreshTotals now returns
+until that control is created, and the same native test then passed.
+
+The requested next workflow is to select in 2D, create/reuse the associated Civil
+3D model, and import a native terrain there. Bentley's
+[OpenRoads SIG FAQ](https://bentleysystems.service-now.com/community?id=kb_article_view&sysparm_article=KB0020382)
+documents Default-3D creation by operations such as making terrain/profile active.
+This is not established by adding an arbitrary 3D ModelReference.
+
+Read-only metadata inspection of the installed assemblies found these public
+signatures, without invoking Civil SDK methods or writing any DGN terrain:
+
+- `Bentley.CifNET.GeometryModel.SDK.GeometricModel.CreateTerrainSurface(Bentley.TerrainModelNET.DTM)`.
+- `Bentley.CifNET.GeometryModel.SDK.Edit.ConsensusConnectionExtensions.GetOrCreateGeometricModel(ConsensusConnection)`.
+- `Bentley.TerrainModelNET.Formats.TerrainImporter.CreateImporter(String)`,
+  `ImportTerrain(String)` and the LandXML importer.
+- `Bentley.TerrainModelNET.DTM.CreateFromFile(String)`, `CreateFromXyzFile(String)`,
+  `AddPoints`, `AddLinearFeature` and `ConvertUnits(Double, Double)`.
+
+These signatures are investigation evidence, **not** verified GeoTIFF support,
+transaction/rollback semantics, Civil 2D/3D pairing or active-terrain behavior.
+The native integration remains unimplemented. It must preserve original clipping,
+NoData holes and separate XY/Z units; simply triangulating every valid raster
+point can bridge gaps and is not an acceptable substitute. A supported import
+and Civil-model workflow still needs actual disposable-DGN execution. The user
+requires no ProjectWise/workspace/search-path/autoload changes.
 
 ## USGS interface verified live
 
@@ -170,20 +235,28 @@ different purposes. The local SHA-256 is not an authoritative USGS checksum.
 
 ## Process boundary and phases
 
-`VBA form -> UTF-8 request.json -> PowerShell child launcher -> Python -> atomic
+`VBA form -> UTF-8 request.json -> standalone launch_worker.exe -> Python -> atomic
 status/results/report files -> VBA form`. No command interpolation, cmd.exe,
 stdin credentials, HTTP service or user-installed web server is needed.
-PowerShell `ProcessStartInfo` applies GIS environment paths only to its Python
-child and drains stdout/stderr asynchronously to avoid blocked pipes. UI status
+The C# launcher uses .NET Framework `ProcessStartInfo` with UseShellExecute=False,
+CreateNoWindow=True and a quoted script/request argument pair. It accepts one
+request path, checks the interpreter and environment allowlist, and applies GIS
+paths only to its Python child. PROJ_NETWORK stays OFF; PYTHONIOENCODING is UTF-8.
+It drains stdout/stderr asynchronously and propagates the worker exit code,
+preserving existing worker status (including cancellation). Launcher failures write
+UTF-16 status and UTF-8 diagnostics. The x64 Windows EXE is built from
+`python/WorkerLauncher.cs` by the standard-library `build_launcher.py` using the
+installed Framework compiler. No PowerShell execution/policy change is involved;
+the historical PS1 remains available but is not used by VBA. UI status
 files are UTF-16, TSV fields are sanitized, and full metadata remains in JSON.
 `DoEvents` plus short Sleep yields the ORD UI while inputs are disabled.
 This cooperative model still needs in-ORD reentrancy/pan/close validation.
 
 | Phase | Implemented | Remaining gate |
 | --- | --- | --- |
-| 1 review/architecture/API validation | Repository + live USGS docs/catalog/products; Python/PowerShell contracts | Delivered ORD CHM/type-library reinspection |
-| 2 selection/CRS | Rectangle dynamics, simple shape, GCS name probe, explicit EPSG/master-unit contract | Compile, picking, known-point/global-origin and GCS tests in ORD |
-| 3 search/download | Native form, metadata, paging, selection, caps, cancellation, receipts; two real DEM transfers/inspection tested | Native form and field usability |
+| 1 review/architecture/API validation | Repository + live USGS docs/catalog/products; standalone launcher; installed ORD 26.00.00.154 CHM/type-library inspection and actual VBA compile | Full GCS export and native Civil API execution |
+| 2 selection/CRS | User-confirmed rectangle/shape picking; native form/unit/default safeguards; explicit EPSG/master-unit contract | Numeric known-point/global-origin, unsupported-geometry, rotated-view/3D and full GCS tests |
+| 3 search/download | Native form, metadata, paging, selection, caps, cancellation, receipts; actual ORD dialog search returned 2 candidates; earlier headless real DEM transfers/inspection passed | Live ORD download/processing and active-job UI cancellation |
 | 4 DEM | Synthetic suite plus two real adjacent 1-m USGS tiles: mosaic, clip, horizontal warp, explicit Z conversion, GeoTIFF/report | Other product collections and ORD import/control validation |
 | 5 LiDAR | Search/download; optional PDAL metadata/schema inspection | Real LAS/LAZ/PDAL execution; ground-only rasterization deferred |
 | 6 native integration | Open output folder and import instructions | Raster attachment and Civil SDK terrain creation deferred |
