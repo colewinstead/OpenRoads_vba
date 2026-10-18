@@ -1,0 +1,13 @@
+.venv/
+.runtime/
+.api-help/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+pip-install.log
+jobs/
+*.dgn
+*.bak
+Prompt.md

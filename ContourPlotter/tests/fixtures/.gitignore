@@ -1,0 +1,5 @@
+# Keep project/survey XML local. Only synthetic fixtures may be tracked.
+*
+!.gitignore
+!openroads_minimal.xml
+!README.md

@@ -5,7 +5,7 @@ Bentley OpenRoads Designer / MicroStation VBA macros. The original
 ship compiled. The tools also include reviewable **VBA source** where available
 (`.bas`, with class/form source where a tool needs them).
 
-**Want it packaged?** [**OpenRoads Field Kit**](https://fingazpdx.gumroad.com/l/openroads-field-kit) — the same macros as a one-click zip with a quick-start guide, printable cheat sheet, and email support. The code in this repo is MIT and stays free; the kit is packaging and a reply when something breaks.
+**Want it packaged?** [**OpenRoads Field Kit**](https://fingazpdx.gumroad.com/l/openroads-field-kit) — the same macros as a one-click zip with a quick-start guide, printable cheat sheet, and email support. The original macros are MIT and stay free; ContourPlotter's engine is GPL-2.0-or-later and its independent VBA client is MIT; the kit is packaging and a reply when something breaks.
 
 The macros target plain MicroStation VBA so they run in any OpenRoads
 Designer release without depending on a specific CivilModel API version.
@@ -148,6 +148,17 @@ the user confirmed a Float32/finite-NoData copy imported; the worker now deliver
 that storage format. Known control and complete native terrain validation have
 separate acceptance gates. This tool has its own explicit
 unit contract; the legacy feet assumptions below do not apply to it.
+
+### Contour Plotter (prototype)
+
+[Contour Plotter](ContourPlotter/README.md) adds a direct LandXML TIN contour engine,
+a standalone Windows package and native DGN line/text writer source. It selects
+existing MDOT levels and text styles, creates physical label gaps, and journals
+exact output IDs for staged regeneration. Python tests and live unsaved API probes
+passed. The included MVBA compiled in ORD 26.00.00.154 and completed the form-to-engine
+preview using a real LandXML surface; native writes and plotting still need ORD acceptance.
+The standalone engine is GPL-2.0-or-later because it reuses the attributed
+LandXML parser; the independent VBA file client remains MIT.
 
 ### Text utilities
 
