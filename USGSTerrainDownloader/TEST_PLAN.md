@@ -1,5 +1,26 @@
 # Repeatable test plan and evidence record
 
+## LandXML export verification (2026-10-29)
+
+The Windows OSGeo4W Python 3.12 / GDAL 3.11.3 suite passed **52 tests with no
+skips**. New tests cover concave/diagonal triangle clipping, plane elevations,
+metre/international-foot/US-survey-foot declarations, NoData holes, boundary-sample
+failure, nonfinite values, cancellation, both mesh limits, and retention/reporting
+of a verified TIFF when XML export fails.
+
+A user-supplied nine-vertex job was converted from checksum-verified cached
+sources without a download. The XML contains **35,690 points and 69,392 faces**,
+with XYZ in US survey feet. Independent ContourPlotter TIN parsing and Matplotlib
+triangle validation passed. A separate polygon union found zero missing area;
+exterior triangle-area residual was 9.69e-8 square US survey feet, within the
+6.29e-6 square-foot numerical tolerance. All **33,704** populated TIFF cell
+centers were compared using an independent triangle interpolator. Maximum Z
+difference was 0.00006101595 US survey feet, accounted for by Float32 TIFF
+rounding plus a 1.57e-10-foot interpolation residual. This is software/format
+verification, not survey-control validation. Native ORD import remains untested.
+Private run evidence stays in ignored `.runs/landxml-20261029/`; no DGN or
+workspace/autoload settings were changed.
+
 ## Evidence at implementation (2026-10-17)
 
 | Check | Environment | Result |
@@ -244,11 +265,16 @@ The opt-in live pilot is separate; originals and generated rasters stay in ignor
   cancellation, atomic source naming, completed-source SHA receipt reuse and corruption.
 - Jobs/bridge: manifest and stale-boundary gate, source-size confirmation, UTF-16
   status/products, successful small-raster job, incremental error report/recovery.
+- LandXML: exact concave/diagonal polygon coverage and vertices, analytical plane
+  elevations, topology and face references, northing/easting order, metre/foot/US
+  survey-foot units, independent TIFF Z units, NoData holes, missing boundary
+  samples, resource caps, cancellation/partial cleanup, and failure reports with
+  the verified TIFF retained. New exporter native ORD import remains unvalidated.
 - GDAL: constant planes, two-tile mosaic, polygon validity, horizontal reprojection
   preserving Z, explicit metres-to-international-feet and survey-feet values,
   **compound vertical-unit read-back**, fully covered reprojected clip-edge regression, NoData gap rejection/explicit acceptance,
   missing CRS, contradictory Z units, mixed vertical datums, resolution conflicts,
-  overlap rejection/explicit last-row priority, triangular polygon clipping, mid-process cancellation and output-cell caps. These are software checks, not
+  overlap rejection/explicit last-row priority, triangular and concave polygon clipping (including every exterior cell and the NoData mask), mid-process cancellation and output-cell caps. These are software checks, not
   geodetic control-point or survey accuracy certification.
 
 If GDAL is missing, raster-dependent tests are **skipped**. Do not present a green
@@ -409,7 +435,16 @@ source accuracy and project-use criteria; a gross overlay is not survey validati
 Open output folder and metadata. With a scratch DGN, use the installed ORD raster
 attachment/terrain-import workflows and record the exact UI/options supported by
 that build. Validate horizontal alignment, vertical datum/unit, sample elevations,
-NoData exclusion, holes and cell resolution after import. Do not treat successful
+NoData exclusion, holes and cell resolution after import. For an irregular or
+concave shape, check the imported boundary and triangles separately from the
+raster mask. Import `terrain.xml` with **Build Terrain From = Definition**;
+confirm the imported face count and boundary, with no triangles across concavities
+or reported holes. Verify the LandXML's common XYZ unit separately from the TIFF's
+Z unit; test metre, international-foot and US-survey-foot models against known
+control. Check interpolated boundary elevations and retain the original TIFF.
+If importing the TIFF instead, use Create Clipped Terrain Model with the original
+shape, External clipping and zero offsets; inspect with the source display off.
+Verify no exterior triangles or NoData elevations remain. Do not treat successful
 raster attachment as a successfully created native terrain model. Keep datum/unit
 interpretation explicit even if ORD ignores compound GeoTIFF vertical tags.
 

@@ -87,6 +87,16 @@ and dataset must match the search. Changing them requires a new search. The hard
 byte cap covers the total actual sizes of selected originals, including cached
 files. File names derive from URL hashes, never product titles.
 
+DEM processing also writes `terrain.xml` automatically; no request-schema or
+MVBA update is needed. `clip` controls actual LandXML triangle clipping as well
+as the TIFF mask. LandXML XYZ all use the horizontal CRS's native unit, while
+`elevation_unit` controls the TIFF Z unit. `report.json.landxml` records point/face
+counts, units, interpolation, triangle area and missing area. Import the XML with
+ORD **Build Terrain From = Definition**. LandXML needs valid surrounding samples
+for its boundary; missing area fails unless `allow_gaps` is true. Its limits are
+one million sampling quads and two million faces. An XML failure leaves the
+verified TIFF and a failed report, with no partial XML published.
+
 For `lidar`, processing fields for DEMs are ignored. Optional
 `pdal_executable: "C:\\OSGeo4W\\bin\\pdal.exe"` enables `pdal info --metadata
 --schema`; otherwise completion is explicitly `lidar_downloaded_uninspected`.
@@ -94,7 +104,8 @@ Neither state means a validated terrain raster was created.
 
 ## Status and cancellation
 
-The worker updates `status.json` with `state` and `message`. Terminal states are
+The worker updates `status.json` with `state` and `message`; `exporting_landxml`
+is the DEM-to-TIN stage after GeoTIFF verification. Terminal states are
 `search_complete`, `dem_complete`, `lidar_downloaded_inspected`,
 `lidar_downloaded_uninspected`, `failed`, `cancelled`. Exit 0 means the requested
 stage completed; exit 2 means failure/cancellation. Stage success alone does not

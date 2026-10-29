@@ -110,6 +110,27 @@ class ProcessingTests(unittest.TestCase):
         self.assertEqual(result['gap_cells'],0)
         self.assertLess(result['valid_boundary_cells'],16)
 
+    def test_concave_polygon_clips_every_exterior_cell(self):
+        source=self.raster(y=3700060,values=np.full((6,6),100.))
+        c=dict(self.config,boundary=[[300000,3700000],[300060,3700000],[300060,3700020],
+                                    [300020,3700020],[300020,3700060],[300000,3700060]])
+        # The L's missing upper-right corner is four rows by four columns.
+        inside=np.ones((6,6),dtype=bool); inside[:4,2:]=False
+        for clip in (True,False):
+            with self.subTest(clip=clip):
+                folder=self.root/str(clip); folder.mkdir()
+                config=dict(c,clip=clip)
+                result=process_dem([source],[self.product],config,prepare_boundary(config),folder)
+                ds=gdal.Open(result['output']); band=ds.GetRasterBand(1)
+                expected=np.full((6,6),np.float32(100*3937/1200))
+                if clip: expected[~inside]=band.GetNoDataValue()
+                np.testing.assert_array_equal(ds.ReadAsArray(),expected)
+                np.testing.assert_array_equal(band.GetMaskBand().ReadAsArray()!=0,
+                                              inside if clip else np.ones((6,6),dtype=bool))
+                self.assertEqual(result['valid_boundary_cells'],20)
+                self.assertEqual(result['gap_cells'],0)
+                band=None; ds.Close()
+
     def test_explicit_overlap_priority(self):
         a=self.raster(); b=self.raster('b.tif',values=np.full((2,2),200.))
         result=self.process([a,b],dict(self.config,overlap_order_confirmed=True))

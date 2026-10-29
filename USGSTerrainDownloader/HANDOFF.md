@@ -7,6 +7,17 @@ Start here, then read [README.md](README.md), [API_NOTES.md](API_NOTES.md),
 The [saved conversation](codex-session-01a1485e-079a-78b3-8e11-c54721d64042.md)
 contains the original task, implementation activity, and the latest continuation.
 
+## LandXML continuation (2026-10-29)
+
+DEM jobs now produce `terrain.xml` alongside the unchanged GeoTIFF workflow.
+`python/landxml_export.py` samples the cached mosaic on the target lattice with a
+one-cell halo, clips triangle geometry to the selected polygon, and writes
+LandXML 1.2 points/faces. It converts XYZ into one horizontal-CRS-native unit;
+the TIFF's separate selected Z unit is preserved. Missing samples are not filled;
+missing mesh area is gated by `allow_gaps`. Import XML with **Build Terrain From =
+Definition**. The existing MVBA/launcher need no rebuild. Copy the whole Python
+folder when moving machines. Native ORD import still needs a disposable-DGN test.
+
 ## ORD-computer continuation (2026-10-17)
 
 Latest cell-size change: after Search, the 1-metre DEM dataset now suggests one

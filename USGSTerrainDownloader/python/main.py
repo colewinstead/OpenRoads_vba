@@ -151,18 +151,27 @@ def run(config, job):
             from terrain_processor import process_dem
             job.state = "processing"
             report["processing"] = process_dem(paths, selected, config, boundary, job.folder, job.check, job.status)
+            from landxml_export import export_landxml
+            job.state = report["state"] = "exporting_landxml"
+            atomic_json(job.folder / "report.json", report)
+            report["landxml"] = export_landxml(paths, config, boundary, report["processing"], job.folder, job.check, job.status)
             report["state"] = "dem_complete"
             (job.folder / "ORD_IMPORT.txt").write_text(
-                "Import terrain.tif manually in a disposable ORD design model first.\n"
-                "Review report.json: horizontal CRS/native units, vertical datum, separate elevation unit, gaps and overlaps.\n"
-                "GeoTIFF is a terrain raster, not a native ORD Terrain Model or a certified survey.\n"
-                "Delivery uses Float32 samples and finite NoData; report.json records the maximum storage rounding in output elevation units.\n"
-                "Use ORD's installed Terrain > Create From File workflow if GeoTIFF is supported in your build; otherwise use an approved GIS conversion.\n"
-                "Set/verify the import elevation units; compare known control and metadata before project use.\n"
-                "Raster attachment/terrain creation are not automated by this VBA tool.\n", encoding="utf-8")
+                "Import terrain.xml with Terrain > Create > From File in a disposable ORD 3D design model first.\n"
+                "Set Build Terrain From = Definition to use the stored clipped triangles. Do not rebuild from points or Source.\n"
+                "Select a terrain feature definition/name; import the surface definition/triangles.\n"
+                "LandXML stores northing easting elevation. All three use the horizontal CRS unit declared in Units; elevations are converted independently from the verified source unit.\n"
+                f"LandXML XYZ unit: {report['landxml']['horizontal_unit']}; vertical datum: {report['landxml']['vertical_datum']}. No vertical datum shift.\n"
+                "Review report.json, horizontal placement, known elevations, boundary, triangles and any reported gaps before project use.\n"
+                + ("The LandXML triangle geometry is clipped to the original selected shape, including concavities.\n"
+                   if config.get("clip", True) else "Polygon clipping was disabled; the LandXML covers the raster rectangle where source triangles are valid.\n") +
+                "Missing source elevations leave holes; they are never connected across gaps.\n"
+                "terrain.tif is also retained with its separate elevation unit, Float32 storage and rectangular NoData mask.\n"
+                "If importing the TIFF instead, apply the original shape using Create Clipped Terrain Model, External, zero offsets.\n"
+                "Native ORD import and survey-control accuracy require validation; DGN writes are not automated.\n", encoding="utf-8")
         atomic_json(job.folder / "report.json", report)
         job.state = report["state"]
-        job.status("DEM verified: terrain.tif and report.json ready for review." if config["dataset"] != "lidar" else report["warning"], True)
+        job.status("DEM verified: terrain.xml and terrain.tif ready. Import XML using Definition; see ORD_IMPORT.txt." if config["dataset"] != "lidar" else report["warning"], True)
         return report
     except Exception as error:
         report["state"] = "cancelled" if isinstance(error, InterruptedError) else "failed"

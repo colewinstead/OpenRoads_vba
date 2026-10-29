@@ -112,19 +112,43 @@ class JobTests(unittest.TestCase):
         from test_processing import ProcessingTests
         helper=ProcessingTests(); helper.setUp()
         try:
-            source=helper.raster()
+            import numpy as np
+            source=helper.raster(x=299980,y=3700040,values=np.full((6,6),100.))
             c=dict(helper.config,schema_version=1,action='search',dataset='dem1m')
             search=helper.root/'search'; search.mkdir()
             p=normalize(item(),'dem1m')
             with patch('main.TNMClient') as client:
                 client.return_value.search.return_value=[p];run(c,Job(search))
             c.update(action='process',selected_ids=['1'],search_manifest=str(search/'search.json'),max_download_bytes=1000000)
-            dest=helper.root/'process';dest.mkdir()
-            with patch('main.download',return_value=(source,{'url':p['url'],'bytes':source.stat().st_size,'sha256':'fixture'})):
-                report=run(c,Job(dest))
-            self.assertEqual(report['state'],'dem_complete')
-            self.assertTrue((dest/'terrain.tif').exists())
-            self.assertEqual(json.loads((dest/'report.json').read_text())['processing']['gap_cells'],0)
+            for clip in (True,False):
+                with self.subTest(clip=clip):
+                    c['clip']=clip
+                    dest=helper.root/str(clip);dest.mkdir()
+                    with patch('main.download',return_value=(source,{'url':p['url'],'bytes':source.stat().st_size,'sha256':'fixture'})):
+                        report=run(c,Job(dest))
+                    self.assertEqual(report['state'],'dem_complete')
+                    self.assertTrue((dest/'terrain.tif').exists())
+                    self.assertTrue((dest/'terrain.xml').exists())
+                    self.assertGreater(report['landxml']['faces'],0)
+                    self.assertEqual(json.loads((dest/'report.json').read_text())['processing']['gap_cells'],0)
+                    guide=(dest/'ORD_IMPORT.txt').read_text(encoding='utf-8')
+                    if clip:
+                        self.assertIn('original selected shape',guide)
+                        self.assertTrue(report['landxml']['clipped'])
+                    else:
+                        self.assertIn('Polygon clipping was disabled',guide)
+                        self.assertFalse(report['landxml']['clipped'])
+                    self.assertIn('Build Terrain From = Definition',guide)
+                    self.assertIn('terrain.xml',(dest/'status.txt').read_text(encoding='utf-16'))
+            mesh_fail=helper.root/'mesh-fail';mesh_fail.mkdir()
+            with patch('main.download',return_value=(source,{'url':p['url'],'bytes':source.stat().st_size,'sha256':'fixture'})), \
+                 patch('landxml_export.export_landxml',side_effect=ValueError('mesh export failed')):
+                with self.assertRaisesRegex(ValueError,'mesh export failed'):run(c,Job(mesh_fail))
+            failure=json.loads((mesh_fail/'report.json').read_text())
+            self.assertEqual(failure['state'],'failed')
+            self.assertIn('processing',failure)
+            self.assertTrue((mesh_fail/'terrain.tif').exists())
+            self.assertFalse((mesh_fail/'terrain.xml').exists())
             fail=helper.root/'fail';fail.mkdir()
             with patch('main.download',side_effect=OSError('network interrupted')):
                 with self.assertRaises(OSError):run(c,Job(fail))

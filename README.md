@@ -139,13 +139,15 @@ pending. It changes no ProjectWise or VBA autoload configuration.
 
 [USGS Terrain Downloader](USGSTerrainDownloader/README.md) adds an independent
 ORD 2026 VBA dialog for temporary rectangle/simple-shape boundaries, official USGS
-DEM/LiDAR searches and a Python GDAL/PROJ terrain-raster workflow. CRS/master units
+DEM/LiDAR searches and a Python GDAL/PROJ GeoTIFF plus clipped LandXML workflow. CRS/master units
 and source vertical datum/units require explicit verification. The included test
 MVBA compiled in ORD 26.00.00.154. Native 2D form/GCS/shape/boundary and standalone
 worker-bridge checks passed, along with 42 Windows tests. Basic picking was
 user-confirmed; three Windows DEM jobs completed. After Float64 import failures,
 the user confirmed a Float32/finite-NoData copy imported; the worker now delivers
-that storage format. Known control and complete native terrain validation have
+that storage format. DEM jobs also export LandXML triangle geometry clipped to
+the selected polygon; import with **Build Terrain From = Definition**. No MVBA
+rebuild is needed for this worker update. Known control and complete native terrain validation have
 separate acceptance gates. This tool has its own explicit
 unit contract; the legacy feet assumptions below do not apply to it.
 

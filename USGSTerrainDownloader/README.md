@@ -2,7 +2,7 @@
 
 OpenRoads Designer 2026 VBA application with source and a separate Python GIS
 worker. Draw a temporary model-XY rectangle or locate an existing simple closed
-shape, search USGS, choose products, and produce an audited GeoTIFF. Existing VBA
+shape, search USGS, choose products, and produce a GeoTIFF plus a clipped LandXML TIN. Existing VBA
 tools are independent and unchanged.
 
 **Status:** the Python DEM workflow passes 32 offline tests on both Mac GIS and
@@ -12,7 +12,7 @@ has now been assembled, compiled and saved in ORD 26.00.00.154. The included
 `USGSTerrainDownloader.mvba` is a **test build**. A native 2D self-check passed
 form initialization, explicit-confirmation defaults, GCS name display, in-memory
 shape vertices, programmatic boundary acceptance and unchanged DGN IDs/settings.
-The Windows suite now passes **42 tests**, including five standalone-launcher
+The Windows suite now passes **52 tests**, including five standalone-launcher
 tests. An actual ORD bridge test started the EXE and Python and read Python's
 expected invalid-schema response. A live search through the ORD dialog then
 completed and displayed **2 one-metre DEM candidates** for the user's test shape.
@@ -59,6 +59,10 @@ Continuing on another computer? Read [HANDOFF.md](HANDOFF.md) and the
 - Compatible DEM mosaicking, optional target-grid polygon clipping after horizontal reprojection to
   the confirmed DGN CRS, **separate numeric elevation-unit conversion**, GeoTIFF 1.1
   compound horizontal/vertical metadata and read-back verification.
+- Automatic LandXML 1.2 surface export with explicit points/faces: triangles are
+  geometrically clipped to the original polygon, including concavities. Boundary
+  elevations use planar interpolation of Float64 DEM samples with a one-cell halo;
+  missing samples leave holes. Import **Definition** to preserve the stored faces.
 - Coverage-gap and overlap gates, source/operation reports, and output-folder opening.
 - Float32 delivery with finite NoData for ORD import; Float64 processing and unit
   conversion, overflow/collision rejection and measured storage rounding in the report.
@@ -259,11 +263,47 @@ changes are required for explicit ribbon load/run.
    **Cancel** signals the child; network reads can take up to their 30-second
    timeout, and some GDAL/read-back stages finish before the next cancellation
    check. Closing while busy requests cancellation and keeps the dialog alive.
-10. **Open Output Folder** and review `report.json`, `terrain.tif` and
+10. **Open Output Folder** and review `report.json`, `terrain.xml`, `terrain.tif` and
     `ORD_IMPORT.txt`. Compare horizontal location and elevations against known
     project control before using the surface. Attach/import manually in the
     disposable DGN and record the tested ORD build and actual import settings.
     Automatic raster attachment/native terrain creation are not claimed.
+
+### Import the clipped LandXML terrain
+
+Every DEM job now also writes **terrain.xml**. In ORD, use **Terrain > Create >
+From File**, choose the XML, and set **Build Terrain From = Definition**. Choose
+an appropriate terrain feature definition/name and import the surface's triangles.
+Definition preserves the stored faces; rebuilding from Source/points can reconnect
+concavities and holes. See [Bentley's import option definitions](https://bentleysystems.service-now.com/community?id=kb_article&sysparm_article=KB0019731).
+
+**Clip to original selected boundary** clips the actual LandXML triangles to the
+polygon. With clipping disabled, the XML covers the raster rectangle wherever
+source triangles are valid. NoData samples never become terrain vertices or get
+bridged. Check the boundary and sample elevations in a disposable DGN first;
+native ORD import of this new exporter remains an acceptance gate.
+
+LandXML point text is **northing easting elevation**. XYZ all use the horizontal
+CRS's native unit (`meter`, `foot`, or `USSurveyFoot`); Z is converted independently
+from the verified source elevation unit. The GeoTIFF still uses the separate
+output elevation unit selected in the form. Both unit contracts and the vertical
+datum are recorded in `report.json`; no vertical datum shift is performed.
+
+Export uses an unmasked Float64 sampling grid with one extra cell around the
+raster. A missing boundary sample causes a coverage failure unless **Allow/report
+NoData gaps** was selected; accepted gaps are recorded as missing triangle area.
+No edge extrapolation or filling is performed. The mesh has a one-million
+sampling-quad limit and a two-million-face limit; use a coarser cell size for
+larger areas. These are resource safeguards, not engineering accuracy limits.
+
+**terrain.tif** is retained. A TIFF has rectangular grid extents with NoData
+outside the polygon. If importing the TIFF instead, use **Create Clipped Terrain
+Model**, the original shape, **External** clipping and **0** offsets, then turn
+off the source terrain display. The new LandXML path avoids that additional clip
+when ORD imports the stored Definition.
+
+The existing MVBA and launcher use the updated Python files without rebuilding.
+Keep the complete `python` folder together, including `landxml_export.py`.
 
 ## Files and recovery
 
@@ -281,7 +321,8 @@ originals after checksum verification. A corrupt/missing receipt causes a stop;
 move the suspect source/receipt aside after review. Concurrent downloads of the
 same source are locked. If a worker crashes, remove a stale `.lock` only after
 confirming no worker is active. A cancelled/failed raster is never published as
-`terrain.tif`. Inspect `error.log`, `stderr.log` and the failure report before retry.
+`terrain.tif`. A failed/cancelled LandXML stage releases no partial XML and retains
+the already verified TIFF; `report.json` records the failure. Inspect `error.log`, `stderr.log` and the failure report before retry.
 
 Limits are implementation safeguards, not engineering standards: 500 search
 candidates, 2-degree extent span, 10,000 km² area, 20,000 densified vertices,
