@@ -12,7 +12,7 @@ has now been assembled, compiled and saved in ORD 26.00.00.154. The included
 `USGSTerrainDownloader.mvba` is a **test build**. A native 2D self-check passed
 form initialization, explicit-confirmation defaults, GCS name display, in-memory
 shape vertices, programmatic boundary acceptance and unchanged DGN IDs/settings.
-The Windows suite now passes **52 tests**, including five standalone-launcher
+The Windows suite now passes **56 tests**, including five standalone-launcher
 tests. An actual ORD bridge test started the EXE and Python and read Python's
 expected invalid-schema response. A live search through the ORD dialog then
 completed and displayed **2 one-metre DEM candidates** for the user's test shape.
@@ -331,6 +331,18 @@ must be direct HTTPS GeoTIFF/LAS/LAZ; archived products require manual handling.
 Mosaic tiles must have equal horizontal CRS, pixel spacing, aligned grids and
 compatible confirmed vertical datum/units. NoData is preserved; gaps are measured
 at pixel centers. No vertical datum/geoid transformation is performed.
+
+### Permission denied while downloading
+
+The worker atomically replaces status/report files while VBA polls them. A sync
+client, scanner, or reader can briefly deny access. Python retries permission
+failures for about two seconds; the VBA reader retries for about one second and
+includes the full file path if access remains blocked. Other I/O errors still fail
+immediately. Both `python/main.py` and the included MVBA/bridge source contain the
+fix. Reopen the downloader after updating the MVBA, select/search again, and retry.
+If the named file remains locked, choose a nonsynced destination folder for the
+next run. No administrator privileges or permission changes are required for the
+transient-lock fix.
 
 ## Backend use
 

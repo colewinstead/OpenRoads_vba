@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'python'))
-from main import Job, run, ui_file
+from main import Job, run, ui_file, atomic_json
 from test_crs import request
 from test_usgs import item
 from usgs_client import normalize
@@ -17,6 +17,73 @@ except ImportError:
 
 
 class JobTests(unittest.TestCase):
+    def test_atomic_publish_retries_temporary_write_and_replace_locks(self):
+        for method in ('write_text','replace'):
+            for kind in ('json','ui'):
+                with self.subTest(method=method,kind=kind), tempfile.TemporaryDirectory() as root:
+                    path=Path(root)/'status';path.write_text('previous')
+                    temp=Path(str(path)+'.tmp')
+                    original=getattr(Path,method)
+                    attempts=0
+                    def locked_once(candidate,*args,**kwargs):
+                        nonlocal attempts
+                        if candidate==temp:
+                            attempts+=1
+                            if attempts<=2:
+                                self.assertEqual(path.read_text(),'previous')
+                                raise PermissionError(13,'temporarily locked')
+                        return original(candidate,*args,**kwargs)
+                    with patch.object(Path,method,new=locked_once), patch('main.time.sleep') as sleep:
+                        if kind=='json': atomic_json(path,{'message':'ready'})
+                        else: ui_file(path,['ready','US survey feet'])
+                    self.assertEqual(attempts,3)
+                    self.assertEqual(sleep.call_count,2)
+                    self.assertFalse(temp.exists())
+                    if kind=='json': self.assertEqual(json.loads(path.read_text()),{'message':'ready'})
+                    else: self.assertEqual(path.read_text(encoding='utf-16'),'ready\nUS survey feet')
+
+    def test_atomic_publish_reports_persistent_lock_without_replacing_old_file(self):
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'status.json';path.write_text('previous')
+            with patch.object(Path,'replace',side_effect=PermissionError(13,'locked')) as replace, \
+                 patch('main.time.sleep') as sleep:
+                with self.assertRaisesRegex(PermissionError,'Cannot update') as error:
+                    atomic_json(path,{'state':'ready'})
+            self.assertIn(str(path),str(error.exception))
+            self.assertEqual(replace.call_count,40)
+            self.assertEqual(sleep.call_count,39)
+            self.assertEqual(path.read_text(),'previous')
+
+    def test_atomic_publish_does_not_retry_unrelated_io_errors(self):
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'status.json';path.write_text('previous')
+            with patch.object(Path,'write_text',side_effect=OSError(5,'disk error')) as write, \
+                 patch('main.time.sleep') as sleep:
+                with self.assertRaisesRegex(OSError,'disk error'):atomic_json(path,{'state':'ready'})
+            self.assertEqual(write.call_count,1)
+            sleep.assert_not_called()
+            self.assertEqual(path.read_text(),'previous')
+
+    @unittest.skipUnless(sys.platform=='win32','Windows sharing-mode regression')
+    def test_atomic_json_recovers_from_real_windows_file_lock(self):
+        import ctypes
+        from ctypes import wintypes
+        import threading
+        kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+        kernel.CreateFileW.argtypes=[wintypes.LPCWSTR,wintypes.DWORD,wintypes.DWORD,ctypes.c_void_p,
+                                    wintypes.DWORD,wintypes.DWORD,wintypes.HANDLE]
+        kernel.CreateFileW.restype=wintypes.HANDLE
+        kernel.CloseHandle.argtypes=[wintypes.HANDLE]
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'status.json';path.write_text('previous')
+            handle=kernel.CreateFileW(str(path),0x80000000,3,None,3,0,None)
+            self.assertNotEqual(handle,ctypes.c_void_p(-1).value)
+            timer=threading.Timer(0.2,kernel.CloseHandle,args=(handle,))
+            timer.start()
+            try: atomic_json(path,{'state':'ready'})
+            finally: timer.join()
+            self.assertEqual(json.loads(path.read_text()),{'state':'ready'})
+
     def test_cell_size_default_uses_horizontal_crs_units_and_supported_dataset(self):
         from pyproj import Transformer
         cases = [('EPSG:26916', 'm', 'dem1m', 1),

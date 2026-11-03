@@ -7,6 +7,16 @@ Start here, then read [README.md](README.md), [API_NOTES.md](API_NOTES.md),
 The [saved conversation](codex-session-01a1485e-079a-78b3-8e11-c54721d64042.md)
 contains the original task, implementation activity, and the latest continuation.
 
+## Status-file locking fix (2026-11-03)
+
+The included MVBA and `vba/modPythonBridge.bas` now retry transient status-read
+locks. `python/main.py` uses the same bounded atomic-write retry for JSON and
+UTF-16 UI files. Both sides name a persistent failing path. Python tests passed
+56/56; a native file-only regression and Debug Compile passed, the diagnostic
+module was removed, and the five-component MVBA was saved. Reopen the downloader,
+select/search again and retry; no DGN/workspace/autoload changes were made.
+The real terrain download was not repeated. See TEST_PLAN for the bounded evidence.
+
 ## LandXML continuation (2026-10-29)
 
 DEM jobs now produce `terrain.xml` alongside the unchanged GeoTIFF workflow.

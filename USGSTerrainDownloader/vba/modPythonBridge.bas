@@ -36,12 +36,32 @@ Public Sub TerrainWriteUTF8(ByVal path As String, ByVal text As String)
 End Sub
 
 Public Function TerrainReadUI(ByVal path As String) As String
-    Dim fs As Object, stream As Object
+    Dim fs As Object, stream As Object, attempt As Long, contents As String
+    Dim errorNumber As Long, errorText As String
     Set fs = CreateObject("Scripting.FileSystemObject")
-    If Not fs.FileExists(path) Then Exit Function
-    Set stream = fs.OpenTextFile(path, 1, False, -1)
-    If Not stream.AtEndOfStream Then TerrainReadUI = stream.ReadAll
-    stream.Close
+    For attempt = 1 To 20
+        contents = ""
+        On Error Resume Next
+        Err.Clear
+        If fs.FileExists(path) Then
+            Set stream = fs.OpenTextFile(path, 1, False, -1)
+            If Err.Number = 0 Then
+                If Not stream.AtEndOfStream Then contents = stream.ReadAll
+            End If
+        End If
+        errorNumber = Err.Number: errorText = Err.Description
+        If Not stream Is Nothing Then stream.Close
+        Set stream = Nothing
+        On Error GoTo 0
+        If errorNumber = 0 Then
+            TerrainReadUI = contents
+            Exit Function
+        End If
+        If errorNumber <> 70 And errorNumber <> 75 And errorNumber <> 53 Then Exit For
+        ' A sync/scanner handle or atomic replacement may briefly deny this read.
+        If attempt < 20 Then Sleep 50
+    Next attempt
+    Err.Raise errorNumber, "TerrainReadUI", "Cannot read " & path & " (" & CStr(errorNumber) & "): " & errorText
 End Function
 
 Public Sub TerrainRuntimeDefaults(ByRef sourceRoot As String, ByRef pythonExe As String, ByRef environmentFile As String)

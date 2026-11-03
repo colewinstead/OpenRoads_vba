@@ -17,10 +17,24 @@ except ImportError as error:
     DEPENDENCY_ERROR = str(error)
 
 
-def atomic_json(path, value):
+def atomic_text(path, text, encoding):
+    path = Path(path)
     temp = Path(str(path) + ".tmp")
-    temp.write_text(json.dumps(value, indent=2, ensure_ascii=True, allow_nan=False), encoding="utf-8")
-    temp.replace(path)
+    # ORD readers and sync/scanner handles can briefly block writing or replacement.
+    for attempt in range(40):
+        try:
+            temp.write_text(text, encoding=encoding, newline="")
+            temp.replace(path)
+            return
+        except PermissionError as error:
+            if attempt == 39:
+                raise PermissionError(error.errno,
+                    f"Cannot update {path}; file stayed locked or inaccessible for 2 seconds.", str(path)) from error
+            time.sleep(0.05)
+
+
+def atomic_json(path, value):
+    atomic_text(path, json.dumps(value, indent=2, ensure_ascii=True, allow_nan=False), "utf-8")
 
 
 def clean(value):
@@ -28,17 +42,7 @@ def clean(value):
 
 
 def ui_file(path, lines):
-    temp = Path(str(path) + ".tmp")
-    temp.write_text("\r\n".join(lines), encoding="utf-16", newline="")
-    # An ORD reader may briefly hold the old file on Windows.
-    for attempt in range(20):
-        try:
-            temp.replace(path)
-            return
-        except PermissionError:
-            if attempt == 19:
-                raise
-            time.sleep(0.025)
+    atomic_text(path, "\r\n".join(lines), "utf-16")
 
 
 def fingerprint(boundary):

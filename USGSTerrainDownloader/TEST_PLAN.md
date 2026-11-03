@@ -1,5 +1,31 @@
 # Repeatable test plan and evidence record
 
+## Status-file locking verification (2026-11-03)
+
+A failed worker traceback identified WinError 5 while atomically replacing
+`status.json` during download; another attempt ended after cancellation. This is
+file-access evidence, not a terrain or LandXML geometry failure. Shared JSON/text
+publication now retries transient permission errors on both writing and replacing;
+permanent errors remain bounded and name the target file. VBA's shared
+`TerrainReadUI` retries access/missing-file races and retains empty-Unicode support.
+
+The offline Windows suite passed **56 tests, no skips**, including a real Windows
+handle that denies delete sharing, transient write/replace failures, persistent
+lock handling, unchanged old target data and immediate unrelated-error handling.
+A native file-only self-check passed in ORD 26.00.00.154: missing/empty/Unicode
+reads, actual exclusive-lock error 70, 1.21 seconds of bounded retry, a path-specific
+error, and successful reading after unlocking. It performs no DGN operations.
+The downloader MVBA was backed up, its reader updated, compiled with the native
+Debug Compile command, and saved with only the five application modules. The
+temporary test module was removed. Evidence stays in ignored
+`.runs/status-lock-20261103/`. The full 456-MiB USGS transfer was not repeated.
+
+Repeat the native file-only check by importing `tests/modTerrainFileTests.bas`
+into an idle test copy of the project, compiling, and running
+`modTerrainFileTests.RunTerrainFileIOSmoke`. Require `status: passed` in
+`%TEMP%\USGSTerrainDownloader-FileTests.json`; remove the test module before
+saving a deliverable MVBA. The broader terrain/import gates remain separate.
+
 ## LandXML export verification (2026-10-29)
 
 The Windows OSGeo4W Python 3.12 / GDAL 3.11.3 suite passed **52 tests with no
