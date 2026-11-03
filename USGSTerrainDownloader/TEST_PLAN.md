@@ -1,5 +1,21 @@
 # Repeatable test plan and evidence record
 
+## Readable run-folder names (2026-11-03)
+
+New search and processing jobs use `search-YYYY-MM-DD_HH-MM-SS` and
+`terrain-YYYY-MM-DD_HH-MM-SS`, respectively, in local time. Creation is atomic;
+an existing name receives `-02`, `-03`, etc. Other filesystem errors still fail
+with the attempted path. Existing folders and saved references are not renamed.
+The one-argument diagnostic caller remains supported with a `run-` prefix.
+
+`tests/modTerrainFolderTests.bas` passed natively in ORD 26.00.00.154: 40 unique
+search folders with collision suffixes, terrain names, the legacy caller,
+invalid-purpose rejection, and preservation of existing files. All test folders
+were created under a dedicated TEMP directory; no DGN operations were performed.
+The updated bridge and form were compiled and the five-module MVBA saved after
+removing the temporary test module. Evidence is in ignored
+`.runs/folder-names-20261103/native-tests.json`. No terrain download was repeated.
+
 ## Status-file locking verification (2026-11-03)
 
 A failed worker traceback identified WinError 5 while atomically replacing

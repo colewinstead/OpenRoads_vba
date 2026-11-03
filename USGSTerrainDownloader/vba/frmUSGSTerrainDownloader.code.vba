@@ -227,7 +227,7 @@ Private Sub RunWorker(ByVal action As String)
     SaveSetting "USGSTerrainDownloader", "Runtime", "SourceRoot", Trim$(txtRoot.Text)
     SaveSetting "USGSTerrainDownloader", "Runtime", "Python", Trim$(txtPython.Text)
     SaveSetting "USGSTerrainDownloader", "Runtime", "EnvironmentFile", Trim$(txtEnv.Text)
-    mJob = TerrainNewJobFolder(Trim$(txtOutput.Text)): mLastFolder = mJob
+    mJob = TerrainNewJobFolder(Trim$(txtOutput.Text), action): mLastFolder = mJob
     TerrainWriteUTF8 mJob & "\request.json", request
     If action = "search" Then mSearchFolder = "": lstProducts.Clear
     SetBusy True

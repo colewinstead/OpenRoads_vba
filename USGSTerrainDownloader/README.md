@@ -307,7 +307,10 @@ Keep the complete `python` folder together, including `landxml_export.py`.
 
 ## Files and recovery
 
-Every search/process creates a separate `run-*` folder. `request.json` is UTF-8;
+Searches create `search-YYYY-MM-DD_HH-MM-SS` folders; download/processing jobs
+create `terrain-YYYY-MM-DD_HH-MM-SS` folders using local time. Name collisions
+receive `-02`, `-03`, etc. Existing folders and the shared `originals` cache
+are left in place. `request.json` is UTF-8;
 `status.json` is machine-readable; `status.txt`, `products.tsv` and `extent.txt`
 are UTF-16 for VBA. Writes replace temporary files atomically. Searches save full
 TNM product metadata in `search.json`. Processing writes an incremental report

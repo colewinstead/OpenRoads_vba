@@ -96,13 +96,31 @@ Unavailable:
     ' Discovery is optional; unavailable paths remain editable, never guessed.
 End Sub
 
-Public Function TerrainNewJobFolder(ByVal destination As String) As String
-    Dim fs As Object, path As String
+Public Function TerrainNewJobFolder(ByVal destination As String, Optional ByVal action As String = "run") As String
+    Dim fs As Object, path As String, base As String, prefix As String, number As Long
+    Dim errorNumber As Long, errorText As String
     Set fs = CreateObject("Scripting.FileSystemObject")
     TerrainRequire fs.FolderExists(destination), "Destination must be an existing writable folder. Browse or create it first."
-    path = fs.BuildPath(destination, "run-" & Format$(Now, "yyyymmdd-hhnnss") & "-" & fs.GetTempName)
-    fs.CreateFolder path
-    TerrainNewJobFolder = path
+    TerrainRequire action = "search" Or action = "process" Or action = "run", "Unknown job folder purpose."
+    prefix = action
+    If action = "process" Then prefix = "terrain"
+    base = fs.BuildPath(destination, prefix & "-" & Format$(Now, "yyyy-mm-dd_hh-nn-ss"))
+    number = 1
+    Do
+        path = base
+        If number > 1 Then path = base & "-" & Format$(number, "00")
+        On Error Resume Next
+        Err.Clear
+        fs.CreateFolder path
+        errorNumber = Err.Number: errorText = Err.Description
+        On Error GoTo 0
+        If errorNumber = 0 Then
+            TerrainNewJobFolder = path
+            Exit Function
+        End If
+        If errorNumber <> 58 Then Err.Raise errorNumber, "TerrainNewJobFolder", "Cannot create " & path & ": " & errorText
+        number = number + 1
+    Loop
 End Function
 
 Private Function CommandQuote(ByVal value As String) As String
